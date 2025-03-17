@@ -1,0 +1,6 @@
+INVITATION_TO_REGISTER = "Sign up for a recipe bot that will help you keep track of your expenses!👇"
+WARNING_BEFORE_EMAIL_ASKING = """I'll help you register now. Enter the information correctly❗ The data will be used to log in in web version"""
+EMAIL_ENTERING = "Please, enter your email"
+SUCCESSFUL_REGISTRATION = "Your registration was successful! ✅"
+UNSUCCESSFUL_REGISTRATION = "Unfortunately, we haven't been able to register you yet 🙁 Please try again later."
+UNRECOGNIZED_MESSAGE_REPLY = "Sorry, I don't have a prepared response to such a message yet 🤷‍♂️"
