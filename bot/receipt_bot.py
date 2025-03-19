@@ -14,7 +14,8 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.views.decorators.csrf import csrf_exempt
 
-from receipt_ocr import receipt_ocr
+from file_saving import file_saving
+from receipt_recognition import recognition
 
 
 settings.configure()
@@ -133,14 +134,13 @@ def handle_receipt_photo(message):
     file_info = bot.get_file(file_id)
     logging.info(f"file_info = {file_info}")
     downloaded_file = bot.download_file(file_info.file_path)
-    filename = os.path.join(UPLOAD_DIR, f"{chat_id}_receipt.jpg")
-    with open(filename, 'wb') as new_file:
-        new_file.write(downloaded_file)
+    file_name = f"{chat_id}_receipt"
+    file_saving(file_name, downloaded_file, "wb", "image")
+
     bot.send_message(
         message.chat.id,
         messages.SUCCESSFUL_RECEIPT_UPLOADING)
-    logging.info(f"Receipt uploaded successfully")
-    receipt_ocr(filename, f"{chat_id}_receipt")
+    recognition(file_name)
 
 
 @bot.message_handler(func=lambda message: isinstance(user_states.get(message.chat.id), dict) and user_states[message.chat.id].get("state") == "awaiting_password")
