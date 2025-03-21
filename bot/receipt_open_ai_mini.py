@@ -6,7 +6,7 @@ from openai import OpenAI
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPEN_AI_TOKEN"))
 
-def open_ai_request(text):
+def open_ai_mini(text):
     try:
         logging.info(f"Product identifing launched")
         completion = client.chat.completions.create(

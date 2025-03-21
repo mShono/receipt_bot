@@ -15,7 +15,7 @@ from django.core.validators import validate_email
 from django.views.decorators.csrf import csrf_exempt
 
 from file_saving import file_saving
-from receipt_recognition import recognition
+from receipt_recognition import recognition_ocr_mini, recognition_turbo
 
 
 settings.configure()
@@ -34,6 +34,8 @@ headers = {
     "Authorization": f"Token {os.getenv("DJANGO_BOT_TOKEN")}",
     "Content-Type": "application/json",
 }
+
+UPLOAD_FOLDER = "uploaded_receipts"
 
 user_states = {}
 user_info = {}
@@ -119,7 +121,6 @@ def callback_inline(call):
 @bot.message_handler(content_types=['photo', 'document'])
 def handle_receipt_photo(message):
     logging.info("Receiving a photo")
-    UPLOAD_DIR = os.path.join(os.getcwd(), "uploaded_receipts")
     if message.content_type == 'document':
         if not message.document.mime_type.startswith("image/"):
             logging.info("The uploaded file was not an image")
@@ -135,12 +136,13 @@ def handle_receipt_photo(message):
     logging.info(f"file_info = {file_info}")
     downloaded_file = bot.download_file(file_info.file_path)
     file_name = f"{chat_id}_receipt"
-    file_saving(file_name, downloaded_file, "wb", "image")
+    file_saving(UPLOAD_FOLDER, file_name, downloaded_file, "wb", "image")
 
     bot.send_message(
         message.chat.id,
         messages.SUCCESSFUL_RECEIPT_UPLOADING)
-    recognition(file_name)
+    # recognition_ocr_mini(file_name)
+    recognition_turbo(file_name)
 
 
 @bot.message_handler(func=lambda message: isinstance(user_states.get(message.chat.id), dict) and user_states[message.chat.id].get("state") == "awaiting_password")
