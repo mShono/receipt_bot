@@ -60,14 +60,6 @@ class Currency(models.Model):
 class User(models.Model):
 
     chat_id = models.IntegerField("Chat_id")
-    email = models.EmailField(
-        "Email",
-        max_length=constants.MAX_LEN_EMAIL,
-        unique=True,
-        error_messages={
-            "unique": "This email is already in use",
-        }
-    )
     username = models.CharField(
         "Username",
         max_length=constants.MAX_LEN_USER_INFO,

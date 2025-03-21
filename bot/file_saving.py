@@ -1,9 +1,14 @@
 import logging
 import os
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 def file_saving(UPLOAD_FOLDER, file_name, saving_item, mode, recognition_stage):
     upload_dir = os.path.join(os.getcwd(), UPLOAD_FOLDER)
+    if not os.path.exists(upload_dir):
+        os.makedirs(upload_dir) 
+        logger.info(f"Created a folder {UPLOAD_FOLDER} at {os.getcwd()}")
     error = "File saving error: "
 
     if recognition_stage == "image":
@@ -20,10 +25,11 @@ def file_saving(UPLOAD_FOLDER, file_name, saving_item, mode, recognition_stage):
         filepath = f"{os.path.join(upload_dir, file_name)}_ai.json"
 
     try:
-        logging.info(launch)
+        logger.info(launch)
         with open(filepath, mode) as file:
             file.write(saving_item)
-            logging.info(f"{ending}, {filepath}")
+            logger.info(f"{ending}, {filepath}")
+        return True
     except Exception as e:
-        logging.error(f"{error}, {e}")
+        logger.error(f"{error}, {e}")
         return None

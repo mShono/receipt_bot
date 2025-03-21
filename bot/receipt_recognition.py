@@ -2,9 +2,9 @@ import base64
 import logging
 import os
 
-from file_saving import file_saving
-from receipt_bot.bot.receipt_open_ai_mini import open_ai_mini
-from receipt_bot.bot.receipt_open_ai_turbo import open_ai_turbo
+from .file_saving import file_saving
+from .receipt_open_ai_mini import open_ai_mini
+from .receipt_open_ai_turbo import open_ai_turbo
 from tesserocr import PyTessBaseAPI, PSM
 from PIL import Image
 

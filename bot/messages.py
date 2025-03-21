@@ -7,4 +7,5 @@ UNRECOGNIZED_MESSAGE_REPLY = "Sorry, I don't have a prepared response to such a 
 UPLOAD_RECEIRT_FIRST = "Do you want to upload your first receipt?"
 UPLOAD_RECEIRT = "Please, upload the receipt photo"
 RECEIPT_INST_IS_DOC = "You've uploaded receipt photo as a document. Please, upload it as a photo"
-SUCCESSFUL_RECEIPT_UPLOADING = "Your receipt uploaded was successfully! ✅"
+SUCCESSFUL_RECEIPT_UPLOADING = "Your receipt uploaded was successful! ✅"
+UNSUCCESSFUL_RECEIPT_UPLOADING = "Unfortunately, we were unable to upload your receipt 😔"
