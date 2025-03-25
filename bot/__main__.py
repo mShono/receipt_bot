@@ -30,9 +30,16 @@ user_states = {}
 user_info = {}
 
 
+logging.basicConfig(level=logging.DEBUG)
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+logging.getLogger("openai").setLevel(logging.INFO)
+logging.getLogger("urllib3").setLevel(logging.INFO)
+logging.getLogger("httpcore").setLevel(logging.INFO)
+
+logger.info("Receipt_bot launched")
 
 @bot.message_handler(commands=["start"])
 def wake_up(message):
@@ -107,35 +114,21 @@ def handle_receipt_photo(message):
         bot.send_message(
             message.chat.id,
             messages.SUCCESSFUL_RECEIPT_UPLOADING)
-        logger.info(f"Successful receipt uploading message sent")
+        logger.info("Successful receipt uploading message sent")
     else:
         bot.send_message(
             message.chat.id,
             messages.UNSUCCESSFUL_RECEIPT_UPLOADING)
-        logger.info(f"Unsuccessful receipt uploading message sent")
+        logger.info("Unsuccessful receipt uploading message sent")
     # recognition_ocr_mini(file_name)
-    # recognition_turbo(file_name)
-
-
-@bot.message_handler(func=lambda message: isinstance(user_states.get(message.chat.id), dict) and user_states[message.chat.id].get("state") == "awaiting_password")
-def process_password(message):
-    """Registration throught message."""
-    chat_id = message.chat.id
-    user_data = user_states.get(chat_id)
-    if user_data:
-        user_states[message.chat.id]["password"] = message.text
-        user_states[message.chat.id].pop("state", None)
-        user_states[message.chat.id]["first_name"] = message.chat.first_name
-        user_states[message.chat.id]["last_name"] = message.chat.last_name
-        user_states[message.chat.id]["username"] = message.chat.username
-        bot.send_message(chat_id, "Your registration was successful! \U00002705")
-        logger.info(user_states)
+    recognition_turbo(file_name)
+    # response = requests.post(f"{DJANGO_API_URL}users/", json=user_info, headers=headers)
 
 
 @bot.message_handler(content_types=["text"])
 def send_welcome(message):
-    chat = message.chat
+    logger.info("Received an unrecoginzed message")
     bot.reply_to(message, text=messages.UNRECOGNIZED_MESSAGE_REPLY)
-
+    logger.info("An unrecoginzed message reply sent")
 
 bot.polling()

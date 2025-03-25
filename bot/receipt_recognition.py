@@ -4,7 +4,7 @@ import os
 
 from .file_saving import file_saving
 from .receipt_open_ai_mini import open_ai_mini
-from .receipt_open_ai_turbo import open_ai_turbo
+from .receipt_open_ai_turbo import image_recognition_turbo, product_recognition_turbo
 from tesserocr import PyTessBaseAPI, PSM
 from PIL import Image
 
@@ -52,5 +52,7 @@ def recognition_turbo(file_name):
     except Exception as e:
         logging.error(f"Image opening error: {e}")
         return None
-    json_text = open_ai_turbo(base64_image)
-    file_saving(UPLOAD_FOLDER, file_name, json_text, "w", "ai")
+    recognized_image = image_recognition_turbo(base64_image)
+    file_saving(UPLOAD_FOLDER, file_name, recognized_image, "w", "image_ai")
+    json_text = product_recognition_turbo(recognized_image)
+    file_saving(UPLOAD_FOLDER, file_name, json_text, "w", "product_ai")

@@ -19,10 +19,14 @@ def file_saving(UPLOAD_FOLDER, file_name, saving_item, mode, recognition_stage):
         launch = "File saving launched"
         ending = "Receipt saved successfully"
         filepath = f"{os.path.join(upload_dir, file_name)}.txt"
-    if recognition_stage == "ai":
+    if recognition_stage == "image_ai":
+        launch = "Recognized text saving in a file launched"
+        ending = "Recognized text saved successfully"
+        filepath = f"{os.path.join(upload_dir, file_name)}_image_ai.txt"
+    if recognition_stage == "product_ai":
         launch = "Identified product saving in a file launched"
         ending = "Identified products saved successfully"
-        filepath = f"{os.path.join(upload_dir, file_name)}_ai.json"
+        filepath = f"{os.path.join(upload_dir, file_name)}_product_ai.json"
 
     try:
         logger.info(launch)
