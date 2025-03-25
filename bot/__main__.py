@@ -7,6 +7,7 @@ import requests
 from telebot import TeleBot, types
 from . import messages
 
+from .django_interaction import check_products_existence
 from .file_saving import file_saving
 from .receipt_recognition import recognition_ocr_mini, recognition_turbo
 
@@ -108,7 +109,7 @@ def handle_receipt_photo(message):
     logger.info(f"file_info = {file_info}")
     downloaded_file = bot.download_file(file_info.file_path)
     file_name = f"{chat_id}_receipt"
-    saving_status = file_saving(UPLOAD_FOLDER, file_name, downloaded_file, "wb", "image")
+    saving_status, _ = file_saving(UPLOAD_FOLDER, file_name, downloaded_file, "wb", "image")
 
     if saving_status == True:
         bot.send_message(
@@ -121,7 +122,8 @@ def handle_receipt_photo(message):
             messages.UNSUCCESSFUL_RECEIPT_UPLOADING)
         logger.info("Unsuccessful receipt uploading message sent")
     # recognition_ocr_mini(file_name)
-    recognition_turbo(file_name)
+    filepath = recognition_turbo(file_name)
+    check_products_existence(filepath)
     # response = requests.post(f"{DJANGO_API_URL}users/", json=user_info, headers=headers)
 
 

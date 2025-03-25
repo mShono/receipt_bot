@@ -43,6 +43,36 @@ def recognition_ocr_mini(file_name):
     # file_saving(UPLOAD_FOLDER, file_name, json_text, "w", "ai")
 
 
+def check_openai_response(text):
+    logging.info("Сhecking if AI has recognized the image")
+    lines = text.splitlines()
+
+    try:
+        if lines and lines[1]:
+            lines = lines[1:]
+            logging.info("Image recognition was successful")
+            return "\n".join(lines)
+
+    except Exception as e:
+        logging.error(f"Text splitting for lines error: {e}")
+        return None
+
+
+def clean_openai_response(text):
+    logging.info("Geting rid of the markers in AI response")
+    lines = text.splitlines()
+
+    if lines and lines[0].strip() == "```json":
+        lines = lines[1:]
+    else:
+        logging.info("There were no markers in AI response")
+        return None
+
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines)
+
+
 def recognition_turbo(file_name):
     filepath = os.path.join(UPLOAD_FOLDER, f"{file_name}.jpg")
     try:
@@ -53,6 +83,14 @@ def recognition_turbo(file_name):
         logging.error(f"Image opening error: {e}")
         return None
     recognized_image = image_recognition_turbo(base64_image)
-    file_saving(UPLOAD_FOLDER, file_name, recognized_image, "w", "image_ai")
-    json_text = product_recognition_turbo(recognized_image)
-    file_saving(UPLOAD_FOLDER, file_name, json_text, "w", "product_ai")
+    checked_recognized_image = check_openai_response(recognized_image)
+    if checked_recognized_image == None:
+        logging.info(f"Ai wasn't able to recognize the image, response: {recognized_image}")
+        file_saving(UPLOAD_FOLDER, file_name, recognized_image, "w", "image_ai")
+    else:
+        file_saving(UPLOAD_FOLDER, file_name, checked_recognized_image, "w", "image_ai")
+        logging.info("Making the second request to AI to find the products")
+        json_text = product_recognition_turbo(checked_recognized_image)
+        cleaned_text = clean_openai_response(json_text)
+        _, filepath = file_saving(UPLOAD_FOLDER, file_name, cleaned_text, "w", "product_ai")
+    return filepath

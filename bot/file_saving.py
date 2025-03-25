@@ -33,7 +33,7 @@ def file_saving(UPLOAD_FOLDER, file_name, saving_item, mode, recognition_stage):
         with open(filepath, mode) as file:
             file.write(saving_item)
             logger.info(f"{ending}, {filepath}")
-        return True
+        return True, filepath
     except Exception as e:
         logger.error(f"{error}, {e}")
         return None

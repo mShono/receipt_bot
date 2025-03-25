@@ -25,6 +25,8 @@ def image_recognition_turbo(base64_image):
                                 Under the product names, it can be written how many servings of the product were purchased at what price, 
                                 for example: 3 x 2,95 EUR
                                 The price is where there is a designation EUR or €. 
+                                When returning the text, follow the lines as in the original image - 
+                                the price should be on the same line as the product.
                                 Don't give me any additional information, text, formating, just the receipt text"""
                         },
                         {
