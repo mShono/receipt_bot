@@ -5,8 +5,10 @@ from dotenv import load_dotenv
 import requests
 
 from telebot import TeleBot, types
-from . import messages
 
+from . import messages
+from . import state
+from .bot_utils import process_price_edit, create_buttons
 from .django_interaction import check_products_existence
 from .file_saving import file_saving
 from .receipt_recognition import recognition_ocr_mini, recognition_turbo
@@ -26,7 +28,7 @@ headers = {
 }
 
 UPLOAD_FOLDER = "uploaded_receipts"
-PRESENT_IN_DATABASE = []
+# PRESENT_IN_DATABASE = []
 
 user_states = {}
 user_info = {}
@@ -100,7 +102,7 @@ def callback_inline(call):
                 messages.UPLOAD_RECEIRT)
             logger.info("Asked for receipt uploading")
 
-        for list_position in PRESENT_IN_DATABASE:
+        for list_position in state.PRESENT_IN_DATABASE:
             pushed_button = f"{list_position['name']}: {list_position['price']} €"
             if call.data == pushed_button:
                 logger.info(f"The user wants to edit {pushed_button}")
@@ -113,108 +115,6 @@ def callback_inline(call):
                 )
                 bot.register_next_step_handler(call.message, lambda message: process_price_edit(message, list_position))
                 return
-
-
-def price_validation(price):
-    try:
-        validated_price = int(price)
-        if validated_price <= 0:
-            logger.info(f"price = {int(price)} which is less or equal to 0")
-            return False, price
-        else:
-            logger.info(f"The price \"{price}\" could be converted to int and isn't less or equal to 0")
-            return True, validated_price
-    except Exception as e:
-        logger.error(f"The price \"{price}\" couldn't be converted to int")
-    try:
-        if "." in price:
-            try:
-                logger.info(f"Trying splitting \"{price}\" to floor and fractional part")
-                floor_part, fractional_part = price.split(".")
-                int_floor_part = int(floor_part)
-            except Exception as e:
-                logging.error(f"Splitting the price that user entered \"{price}\" with a '.' failed: {e}")
-                return False, price
-        elif "," in price:
-            try:
-                logger.info(f"Trying splitting \"{price}\" to floor and fractional part")
-                floor_part, fractional_part = price.split(",")
-                int_floor_part = int(floor_part)
-                price = "".join([floor_part, ".", fractional_part])
-            except Exception as e:
-                logging.error(f"Splitting the price that user entered \"{price}\" with a ',' failed: {e}")
-                return False, price
-        else:
-            logging.info(f"Turning the price that user entered {price} into a float failed")
-            return False, price
-    except Exception as e:
-        logger.error(f"The price \"{price}\" couldn't be splited neighter with '.', nor with ','")
-        return False, price
-    if (len(fractional_part) > 2) or (int_floor_part < 0):
-        logger.info(f"len(fractional_part) = {len(fractional_part)} which is more then 2, "\
-                    f"or int(floor_part) = {int(floor_part)} which is less then 0")
-        return False, price
-    else:
-        try:
-            validated_price = float(price)
-        except Exception as e:
-            logging.error(f"Turning the price that user entered {price} into a float failed: {e}")
-            return False, price
-        logger.info(f"validated_price = {validated_price}")
-        return True, validated_price
-
-
-def process_price_edit(message, editted_list_position):
-    logger.info(f"For {editted_list_position} the user set the following price \"{message.text}\". Price validation launched")
-    new_price = message.text
-    validity, validated_price = price_validation(new_price)
-    logger.info(f"validity =  {validity}")
-    if validity == False:
-        logger.info("validity == False")
-        markup = create_buttons()
-        bot.send_message(
-        message.chat.id,
-        f"Can't set a {validated_price} price to \"{editted_list_position['name']}\". "\
-        "Please, enter a correct price with two digits after point",
-        reply_markup=markup)
-    else:
-        global PRESENT_IN_DATABASE, ABSENT_IN_DATABASE
-        for list_position in PRESENT_IN_DATABASE:
-            if list_position == editted_list_position:
-                list_position["price"] = validated_price
-                break
-            else:
-                pass
-        logger.info(f"Updated {list_position['name']} price to {list_position['price']}")
-        logger.info(f"PRESENT_IN_DATABASE = {PRESENT_IN_DATABASE}")
-        markup = create_buttons()
-        bot.send_message(
-            message.chat.id,
-            f"Price for \"{editted_list_position['name']}\" updated to {validated_price}. "\
-            "Do you want to correct some other price?",
-            reply_markup=markup)
-
-
-def create_buttons():
-    if PRESENT_IN_DATABASE:
-        logger.info("Starting to form the buttons")
-        markup = types.InlineKeyboardMarkup()
-        buttons_in_a_row = []
-        len_present_in_database = len(PRESENT_IN_DATABASE)
-        for list_position in PRESENT_IN_DATABASE:
-            buttons_in_a_row.append(types.InlineKeyboardButton(
-                f"{list_position['name']}: {list_position['price']} €",
-                callback_data=f"{list_position['name']}: {list_position['price']} €")
-            )
-            if len(buttons_in_a_row) == 2:
-                markup.row(*buttons_in_a_row)
-                buttons_in_a_row = []
-            elif (len(buttons_in_a_row) == 1) and (len_present_in_database == 1):
-                markup.add(*buttons_in_a_row)
-            len_present_in_database -= 1
-        no_button = types.InlineKeyboardButton("Nothing to edit", callback_data="Nothing to edit")
-        markup.add(no_button)
-    return markup
 
 
 @bot.message_handler(content_types=['photo', 'document'])
@@ -249,11 +149,12 @@ def handle_receipt_photo(message):
         logger.info("Unsuccessful receipt uploading message sent")
     # recognition_ocr_mini(file_name)
     # filepath = recognition_turbo(file_name)
-    global PRESENT_IN_DATABASE, ABSENT_IN_DATABASE
-    # PRESENT_IN_DATABASE, ABSENT_IN_DATABASE = check_products_existence(filepath)
-    PRESENT_IN_DATABASE = [{'name': 'Apples', 'price': 3.12}, {'name': 'Tea', 'price': 1.14}, {'name': 'Coffee', 'price': 5.35}, {'name': 'Bananas', 'price': 2.11}]
-    logger.info(f"PRESENT_IN_DATABASE = {PRESENT_IN_DATABASE}")
-    if PRESENT_IN_DATABASE:
+    # present_in_database, absent_in_database = check_products_existence(filepath)
+    state.PRESENT_IN_DATABASE.clear()
+    # state.PRESENT_IN_DATABASE.extend(present_in_database)
+    state.PRESENT_IN_DATABASE.extend([{'name': 'Apples', 'price': 3.12}, {'name': 'Tea', 'price': 1.14}, {'name': 'Coffee', 'price': 5.35}, {'name': 'Bananas', 'price': 2.11}])
+    logger.info(f"PRESENT_IN_DATABASE = {state.PRESENT_IN_DATABASE}")
+    if state.PRESENT_IN_DATABASE:
         markup = create_buttons()
         bot.send_message(
             message.chat.id,
