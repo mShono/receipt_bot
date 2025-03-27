@@ -15,6 +15,9 @@ PSM = [
     PSM.SINGLE_BLOCK, PSM.SPARSE_TEXT,
 ]
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 RECEIPT_TO_TEXTS = {
     "K_market_2025-03-18_2": [
@@ -32,10 +35,10 @@ RECEIPT_TO_TEXTS = {
 
 def image_opening(image):
     try:
-        logging.info(f"Opening {image.name} from: {RECEIPT_PHOTO_PATH}")
+        logger.info(f"Opening {image.name} from: {RECEIPT_PHOTO_PATH}")
         return Image.open(image)
     except Exception as e:
-        logging.error(f"{image.name} opening error: {e}")
+        logger.error(f"{image.name} opening error: {e}")
         return None
 
 def test_ocr():
@@ -54,31 +57,31 @@ def test_ocr():
 
             entry_name, _ = entry.name.split(".")
             entry_name_psm = f"{entry_name}_{psm[counter]}"
-            logging.info(f"entry_name_psm = {entry_name_psm}")
+            logger.info(f"entry_name_psm = {entry_name_psm}")
             counter += 1
             # entry_name_psm_ocr = f"{entry_name_psm}_ocr"
             entry_names.append(entry_name_psm)
-            logging.info(f"entry_names = {entry_names}")
+            logger.info(f"entry_names = {entry_names}")
 
             file_saving(UPLOAD_FOLDER, entry_name_psm, text, "w", "ocr")
 
             result_dict[entry_name_psm] = {}
-            logging.info(f"result_dict = {result_dict}")
+            logger.info(f"result_dict = {result_dict}")
 
             expected_texts = RECEIPT_TO_TEXTS[entry_name]
-            logging.info(f"expected_texts = {expected_texts}")
+            logger.info(f"expected_texts = {expected_texts}")
             for txt in expected_texts:
                 txt_lower = txt.lower()
                 if txt_lower in text:
-                    logging.info(f"Texts compairing launched")
-                    logging.info(f"txt_lower = {txt_lower}")
+                    logger.info(f"Texts compairing launched")
+                    logger.info(f"txt_lower = {txt_lower}")
                     result_dict[entry_name_psm][txt_lower] = True
                 else:
                     result_dict[entry_name_psm][txt_lower] = False
 
     with open(f"{os.path.join(UPLOAD_DIR, "result_dict")}.py", "w") as file:
         file.write(json.dumps(result_dict))
-    logging.info(f"result_dict = {result_dict}")
+    logger.info(f"result_dict = {result_dict}")
     for entry_name in entry_names:
         for key in result_dict[entry_name].keys():
             assert result_dict[entry_name][key] == True
