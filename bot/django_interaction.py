@@ -88,12 +88,7 @@ def check_existent_categories():
     try:
         response = requests.get(f"{DJANGO_API_URL}category/", headers=headers)
         if response.status_code == 200:
-            state.EXISTING_CATEGORIES_WITH_ID.clear()
-            state.EXISTING_CATEGORIES_WITH_ID.extend(json.loads(response.text))
             logger.info(f"EXISTING_CATEGORIES_WITH_ID = {state.EXISTING_CATEGORIES_WITH_ID}")
-        elif response.status_code == 404:
-            logger.info("There are not any categories in a database")
-            logger.info(f"response.text = {response.text}")
         else:
             logger.info(f"Received an unpredictable response from Django database: {response.status_code}")
             logger.info(f"response.text = {response.text}")
@@ -101,7 +96,9 @@ def check_existent_categories():
         logger.error(f"The request for database for existent categories failed: {e}")
         return None
     state.EXISTING_CATEGORIES.clear()
+    state.EXISTING_CATEGORIES_WITH_ID.clear()
     try:
+        state.EXISTING_CATEGORIES_WITH_ID.extend(json.loads(response.text))
         for category in json.loads(response.text):
             state.EXISTING_CATEGORIES.append(category["name"])
         logger.info(f"EXISTING_CATEGORIES = {state.EXISTING_CATEGORIES}")
@@ -117,16 +114,16 @@ def post_category_product(endpoint, data):
         response = requests.post(url, headers=headers, json=data)
         if response.status_code == 201:
             logger.info(f"The {endpoint} data \"{data}\" was successfully posted to the database")
-            return True
-        elif response.status_code == 404:
-            logger.info(f"Posting {endpoint} data \"{data}\" to the database was unsuccessfull")
-            return False
+            logger.info(f"response.text = {response.text}")
+            new_category = response.json()
+            return True, new_category["id"]
         else:
-            logger.info(f"Received an unpredictable response from Django database: {response.status_code}")
-            return False
+            logger.info(f"Posting {endpoint} data \"{data}\" to the database was unsuccessfull")
+            logger.info(f"response.status_code = {response.status_code}")
+            return False, None
     except Exception as e:
-        logger.error(f"Reading the json file with products failed: {e}")
-        return None
+        logger.error(f"Error posting {endpoint} data: {e}")
+        raise e
 
 # filepath = "/home/masher/development/receipt_bot/uploaded_receipts/382807642_receipt_product_ai.json"
 # check_products_existence(filepath)

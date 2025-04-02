@@ -8,7 +8,8 @@ from telebot import TeleBot, types
 
 from . import messages
 from . import state
-from .bot_utils import process_price_edit, create_price_name_buttons, process_name_edit, category_creation, get_category_id
+from .bot_utils import process_price_edit, process_name_edit, category_creation, get_category_id
+from .buttons import price_name_buttons
 from .django_interaction import check_list_of_products_existence, post_category_product
 from .file_saving import file_saving
 from .receipt_recognition import recognition_ocr_mini, recognition_turbo
@@ -91,7 +92,7 @@ def callback_price_edit(call):
     state.PRODUCTS_ABSENT_IN_DATABASE
     logger.info(f"ABSENT_IN_DATABASE = {state.PRODUCTS_ABSENT_IN_DATABASE}")
     if state.PRODUCTS_ABSENT_IN_DATABASE:
-        markup = create_price_name_buttons(state.PRODUCTS_ABSENT_IN_DATABASE, "ABSENT_IN_DATABASE")
+        markup = price_name_buttons(state.PRODUCTS_ABSENT_IN_DATABASE, "ABSENT_IN_DATABASE")
         bot.send_message(
             call.message.chat.id,
             messages.UNSUCCESSFUL_RECOGNITION,
@@ -122,13 +123,20 @@ def callback_existing_category(call):
 
     logger.info(f"The user assigns the category \"{category_name}\" for the following product: \"{product_name}\"")
     category_id = get_category_id(category_name)
-    post_category_product("product", {"name": f"{product_name}", "category": category_id})
-    bot.send_message(
-        call.message.chat.id,
-        f"The category \"{category_name}\" successfully set for the product {product_name}. "\
-        "Please correct the other products.",
-        reply_markup=create_price_name_buttons(state.PRODUCTS_ABSENT_IN_DATABASE, "ABSENT_IN_DATABASE")
-    )
+    status, _ = post_category_product("product", {"name": f"{product_name}", "category": category_id})
+    if status:
+        bot.send_message(
+            call.message.chat.id,
+            f"The category \"{category_name}\" successfully set for the product {product_name}. "\
+            "Please correct the other products.",
+            reply_markup=price_name_buttons(state.PRODUCTS_ABSENT_IN_DATABASE, "ABSENT_IN_DATABASE")
+        )
+    else:
+        bot.send_message(
+            call.message.chat.id,
+            text=messages.UNEXPECTED_ERROR,
+            reply_markup=price_name_buttons(state.PRODUCTS_ABSENT_IN_DATABASE, "ABSENT_IN_DATABASE")
+        )
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("category_creation"))
@@ -258,21 +266,17 @@ def handle_receipt_photo(message):
         logger.info("Unsuccessful receipt uploading message sent")
     # recognition_ocr_mini(file_name)
     # filepath = recognition_turbo(file_name)
-    # present_in_database, absent_in_database = check_list_of_products_existence(filepath) # я тут перезаписываю в эти переменные дважды
-    # state.PRESENT_IN_DATABASE.clear() - вообще не надо
-    # state.ABSENT_IN_DATABASE.clear() - вообще не надо
-    # state.PRESENT_IN_DATABASE.extend(present_in_database) - вообще не надо
-    # state.PRESENT_IN_DATABASE.extend(absent_in_database) - вообще не надо
+    # check_list_of_products_existence(filepath)
     filepath = "/home/masher/development/receipt_bot/uploaded_receipts/382807642_receipt_product_ai.json"
     check_list_of_products_existence(filepath)
-    # state.PRODUCTS_PRESENT_IN_DATABASE.extend([{'name': 'Apples', 'price': 312}, {'name': 'Tea', 'price': 114}, {'name': 'Coffee', 'price': 535}, {'name': 'Bananas', 'price': 211}])
     if state.PRODUCTS_PRESENT_IN_DATABASE:
-        markup = create_price_name_buttons(state.PRODUCTS_PRESENT_IN_DATABASE, "PRESENT_IN_DATABASE")
+        markup = price_name_buttons(state.PRODUCTS_PRESENT_IN_DATABASE, "PRESENT_IN_DATABASE")
         bot.send_message(
             message.chat.id,
             messages.SUCCESSFUL_RECOGNITION,
             reply_markup=markup)
         logger.info("Sent the present in database products and asked if the price edition is needed")
+# Here should add "else"
 
 
 
