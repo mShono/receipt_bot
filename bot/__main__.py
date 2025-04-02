@@ -8,8 +8,8 @@ from telebot import TeleBot, types
 
 from . import messages
 from . import state
-from .bot_utils import process_price_edit, create_buttons
-from .django_interaction import check_products_existence
+from .bot_utils import process_price_edit, create_price_name_buttons, process_name_edit, category_creation, get_category_id
+from .django_interaction import check_list_of_products_existence, post_category_product
 from .file_saving import file_saving
 from .receipt_recognition import recognition_ocr_mini, recognition_turbo
 
@@ -59,61 +59,170 @@ def wake_up(message):
     logger.info("Invitation for registration sent")
 
 
+@bot.callback_query_handler(func=lambda call: call.data.startswith("price_edit_yes:"))
+def callback_price_edit(call):
+    try:
+        _, product_name = call.data.split(":", 1)
+    except Exception as e:
+        logger.error(f"Error parsing callback_data: {call.data} - {e}")
+        return
+
+    editted_list_position = None
+    for list_position in state.PRODUCTS_ABSENT_IN_DATABASE:
+        if list_position["name"] == product_name:
+            editted_list_position = list_position
+            break
+
+    logger.info(f"The user wants to edit the price of the following product: {editted_list_position}")
+    force_reply = types.ForceReply(selective=True)
+    bot.send_message(
+        call.message.chat.id,
+        f"Current price for \"{editted_list_position["name"]}\" is {editted_list_position["price"]} € "\
+        "Please enter the correct price:",
+        reply_markup=force_reply
+    )
+    bot.register_next_step_handler(
+        call.message,
+        lambda message: process_price_edit(message, editted_list_position, state.PRODUCTS_ABSENT_IN_DATABASE))
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("Nothing_to_edit_after_PRESENT_IN_DATABASE"))
+def callback_price_edit(call):
+    state.PRODUCTS_ABSENT_IN_DATABASE
+    logger.info(f"ABSENT_IN_DATABASE = {state.PRODUCTS_ABSENT_IN_DATABASE}")
+    if state.PRODUCTS_ABSENT_IN_DATABASE:
+        markup = create_price_name_buttons(state.PRODUCTS_ABSENT_IN_DATABASE, "ABSENT_IN_DATABASE")
+        bot.send_message(
+            call.message.chat.id,
+            messages.UNSUCCESSFUL_RECOGNITION,
+            reply_markup=markup)
+        logger.info("Sent the absent in database products and asked for edition")
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("Nothing_to_edit_after_ABSENT_IN_DATABASE"))
+def callback_price_edit(call):
+    # post_category_product("product", state.NEW_PRODUCTS_FOR_DATABASE)
+    bot.send_message(
+        call.message.chat.id,
+        messages.UPLOAD_EXPENCE)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("existing_cat"))
+# here we should also ask about the price!
+def callback_existing_category(call):
+    try:
+        category_info, product_info = call.data.split(",", 1)
+        _, category_name = category_info.split(":", 1)
+        _, product_name = product_info.split(":", 1)
+        logger.debug(f"category_name = {category_name}")
+        logger.debug(f"product_name = {product_name}")
+    except Exception as e:
+        logger.error(f"Error parsing callback_data: {call.data} - {e}")
+        return
+
+    logger.info(f"The user assigns the category \"{category_name}\" for the following product: \"{product_name}\"")
+    category_id = get_category_id(category_name)
+    post_category_product("product", {"name": f"{product_name}", "category": category_id})
+    bot.send_message(
+        call.message.chat.id,
+        f"The category \"{category_name}\" successfully set for the product {product_name}. "\
+        "Please correct the other products.",
+        reply_markup=create_price_name_buttons(state.PRODUCTS_ABSENT_IN_DATABASE, "ABSENT_IN_DATABASE")
+    )
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("category_creation"))
+def callback_category_creation(call):
+# done!
+    try:
+        _, product_info = call.data.split(",", 1)
+        _, product_name = product_info.split(":", 1)
+        logger.info(f"product_name = {product_name}")
+    except Exception as e:
+        logger.error(f"Error parsing callback_data: {call.data} - {e}")
+        return
+
+    force_reply = types.ForceReply(selective=True)
+    bot.send_message(
+        call.message.chat.id,
+        f"Please, enter a category for the product \"{product_name}\"",
+        reply_markup=force_reply
+    )
+    bot.register_next_step_handler(call.message, lambda message: category_creation(message, product_name))
+
+
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
-    chat = call.message.chat
+    message = call.message
     if call.message:
 
         if call.data == "Register":
             user_info = {
-                "chat_id": chat.id,
-                "username": chat.username,
-                "first_name": chat.first_name,
-                "last_name": chat.last_name,
+                "chat_id": message.chat.id,
+                "username": message.chat.username,
+                "first_name": message.chat.first_name,
+                "last_name": message.chat.last_name,
             }
             logger.info(f"Information has been collected, user_info = {user_info}")
             response = requests.post(f"{DJANGO_API_URL}users/", json=user_info, headers=headers)
             if response.status_code == 201:
                 logger.info(f"Registration successful, response.status_code = {response.status_code}")
             else:
-                bot.send_message(chat.id, messages.UNSUCCESSFUL_REGISTRATION)
+                bot.send_message(message.chat.id, messages.UNSUCCESSFUL_REGISTRATION)
                 logger.info(f"Registratipon failed, response.text = {response.text}")
                 logger.error(f"response.status_code = {response.status_code}")
                 return
-            bot.send_message(chat.id, messages.SUCCESSFUL_REGISTRATION)
+            bot.send_message(message.chat.id, messages.SUCCESSFUL_REGISTRATION)
             markup = types.InlineKeyboardMarkup()
             upload_receipt_button = types.InlineKeyboardButton("Upload receipt", callback_data="Upload receipt")
             markup.add(upload_receipt_button)
             bot.send_message(
-                chat_id=chat.id,
+                chat_id=message.chat.id,
                 text=messages.UPLOAD_RECEIRT_FIRST,
                 reply_markup=markup)
             logger.info("Showed the 'Upload receipt' button")
 
         elif call.data == "Upload receipt":
             bot.send_message(
-                chat.id,
+                message.chat.id,
                 messages.UPLOAD_RECEIRT)
             logger.info("Asked for receipt uploading")
 
-        elif call.data == "Nothing to edit":
-            bot.send_message(
-                chat.id,
-                messages.UPLOAD_RECEIRT)
-            logger.info("Asked for receipt uploading")
+        for list_position in state.PRODUCTS_PRESENT_IN_DATABASE:
+            pushed_button = f"{list_position['name']}: {list_position['price']} €"
+            if call.data == pushed_button:
+                logger.info(f"The user wants to edit the price of the following product {pushed_button}")
+                force_reply = types.ForceReply(selective=True)
+                bot.send_message(
+                    message.chat.id,
+                    f"Current price for \"{list_position['name']}\" is {list_position['price']} €. "\
+                    "Please enter the correct price:",
+                    reply_markup=force_reply
+                )
+                bot.register_next_step_handler(call.message, lambda message: process_price_edit(
+                    message,
+                    list_position,
+                    state.PRODUCTS_PRESENT_IN_DATABASE,
+                    "PRESENT_IN_DATABASE")
+                )
+                return
 
-        for list_position in state.PRESENT_IN_DATABASE:
+        for list_position in state.PRODUCTS_ABSENT_IN_DATABASE:
             pushed_button = f"{list_position['name']}: {list_position['price']} €"
             if call.data == pushed_button:
                 logger.info(f"The user wants to edit {pushed_button}")
                 force_reply = types.ForceReply(selective=True)
                 bot.send_message(
-                    chat.id,
-                    f"Current price for \"{list_position['name']}\" is {list_position['price']} €. "\
-                    "Please enter the correct price:",
+                    message.chat.id,
+                    f"Current name for the product is \"{list_position['name']}\". "\
+                    "Please enter the correct name:",
                     reply_markup=force_reply
                 )
-                bot.register_next_step_handler(call.message, lambda message: process_price_edit(message, list_position))
+                bot.register_next_step_handler(call.message, lambda message: process_name_edit(
+                    message,
+                    list_position,
+                    state.PRODUCTS_ABSENT_IN_DATABASE)
+                )
                 return
 
 
@@ -149,13 +258,16 @@ def handle_receipt_photo(message):
         logger.info("Unsuccessful receipt uploading message sent")
     # recognition_ocr_mini(file_name)
     # filepath = recognition_turbo(file_name)
-    # present_in_database, absent_in_database = check_products_existence(filepath)
-    state.PRESENT_IN_DATABASE.clear()
-    # state.PRESENT_IN_DATABASE.extend(present_in_database)
-    state.PRESENT_IN_DATABASE.extend([{'name': 'Apples', 'price': 3.12}, {'name': 'Tea', 'price': 1.14}, {'name': 'Coffee', 'price': 5.35}, {'name': 'Bananas', 'price': 2.11}])
-    logger.info(f"PRESENT_IN_DATABASE = {state.PRESENT_IN_DATABASE}")
-    if state.PRESENT_IN_DATABASE:
-        markup = create_buttons()
+    # present_in_database, absent_in_database = check_list_of_products_existence(filepath) # я тут перезаписываю в эти переменные дважды
+    # state.PRESENT_IN_DATABASE.clear() - вообще не надо
+    # state.ABSENT_IN_DATABASE.clear() - вообще не надо
+    # state.PRESENT_IN_DATABASE.extend(present_in_database) - вообще не надо
+    # state.PRESENT_IN_DATABASE.extend(absent_in_database) - вообще не надо
+    filepath = "/home/masher/development/receipt_bot/uploaded_receipts/382807642_receipt_product_ai.json"
+    check_list_of_products_existence(filepath)
+    # state.PRODUCTS_PRESENT_IN_DATABASE.extend([{'name': 'Apples', 'price': 312}, {'name': 'Tea', 'price': 114}, {'name': 'Coffee', 'price': 535}, {'name': 'Bananas', 'price': 211}])
+    if state.PRODUCTS_PRESENT_IN_DATABASE:
+        markup = create_price_name_buttons(state.PRODUCTS_PRESENT_IN_DATABASE, "PRESENT_IN_DATABASE")
         bot.send_message(
             message.chat.id,
             messages.SUCCESSFUL_RECOGNITION,
@@ -165,7 +277,7 @@ def handle_receipt_photo(message):
 
 
 @bot.message_handler(content_types=["text"])
-def send_welcome(message):
+def unknown_message_answer(message):
     logger.info("Received an unrecoginzed message")
     bot.reply_to(message, text=messages.UNRECOGNIZED_MESSAGE_REPLY)
     logger.info("An unrecoginzed message reply sent")

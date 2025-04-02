@@ -1,14 +1,14 @@
 import logging
 
 import os
-from decimal import Decimal
 from dotenv import load_dotenv
 import requests
 
 from telebot import TeleBot, types
 
 from . import state
-from . import messages
+from .conversions import float_to_int, int_to_float_str
+from .django_interaction import check_one_product_existence, check_existent_categories, post_category_product
 
 load_dotenv()
 
@@ -73,7 +73,16 @@ def price_validation(price):
         return True, validated_price
 
 
-def process_price_edit(message, editted_list_position):
+def yes_no_buttons(list_position):
+    markup = types.InlineKeyboardMarkup()
+    buttons_in_a_row = []
+    buttons_in_a_row.append(types.InlineKeyboardButton("Yes", callback_data=f"price_edit_yes:{list_position["name"]}"))
+    buttons_in_a_row.append(types.InlineKeyboardButton("No", callback_data="No"))
+    markup.row(*buttons_in_a_row)
+    return markup
+
+
+def process_price_edit(message, editted_list_position, buttons_list, buttons_list_name):
     logger.info(f"For {editted_list_position} the user set the following price \"{message.text}\". Price validation launched")
     new_price = message.text
     validity, validated_price = price_validation(new_price)
@@ -82,40 +91,81 @@ def process_price_edit(message, editted_list_position):
         logger.info("Invalid price entered.")
         bot.send_message(
         message.chat.id,
-        f"Can't set a {validated_price} price to \"{editted_list_position['name']}\". "\
+        f"Can't set a {validated_price} price to \"{editted_list_position["name"]}\". "\
         "Please, enter a correct price with two digits after point",
-        reply_markup=create_buttons())
+        reply_markup=create_price_name_buttons())
     else:
-        for list_position in state.PRESENT_IN_DATABASE:
+        for list_position in buttons_list:
+            price = list_position["price"]
             if list_position == editted_list_position:
-                list_position["price"] = validated_price
-                break
-        logger.info(f"Updated {list_position['name']} price to {list_position['price']}")
-        logger.info(f"PRESENT_IN_DATABASE = {state.PRESENT_IN_DATABASE}")
+                price = validated_price
+            integer_price = float_to_int(price)
+            list_position["price"] = integer_price
+            logger.info(f"Updated {list_position["name"]} price to {list_position["price"]}")
+        logger.info(f"buttons_list = {buttons_list}")
         bot.send_message(
             message.chat.id,
-            f"Price for \"{editted_list_position['name']}\" updated to {validated_price}. "\
-            "Do you want to correct some other price?",
-            reply_markup=create_buttons())
+            f"Price for \"{editted_list_position["name"]}\" updated to {validated_price}. "\
+            "Do you want to correct something else?",
+            reply_markup=create_price_name_buttons(buttons_list, buttons_list_name))
 
 
-def float_to_int(price):
-    decim_price = Decimal(f"{price}")
-    return int(decim_price*100)
+def process_name_edit(message, editted_list_position, buttons_list):
+    logger.info(f"For \"{editted_list_position}\" the user set the following name \"{message.text}\".")
+    old_name = editted_list_position["name"]
+    for list_position in buttons_list:
+        # price = list_position["price"]
+        # integer_price = float_to_int(price)
+        # list_position["price"] = integer_price
+        if list_position == editted_list_position:
+            list_position["name"] = message.text
+    logger.info(f"Updated {old_name} to {editted_list_position["name"]}")
+    state = check_one_product_existence(product=message.text)
+    if not state:
+        check_existent_categories()
+        bot.send_message(
+            message.chat.id,
+            f"The product \"{message.text}\" is not in our database. "\
+            "Please enter it's category.",
+            reply_markup=create_category_buttons(editted_list_position["name"]))
+    else:
+        bot.send_message(
+            message.chat.id,
+            f"Updated \"{old_name}\" to \"{message.text}\". "\
+            "Please correct the other products.",
+            reply_markup=create_price_name_buttons(state.PRODUCTS_ABSENT_IN_DATABASE, "ABSENT_IN_DATABASE"))
+    # Here I need to add an algorithm in case the product name entered by the user is in the database.
+
+    # price edition will be te future feature
+    # logger.info(f"buttons_list = {buttons_list}")
+    # bot.send_message(
+    #     message.chat.id,
+    #     f"Updated \"{old_name}\" to {message.text}. "\
+    #     f"Do you need to correct its price \"{editted_list_position["price"]}\"?",
+    #     reply_markup=yes_no_buttons(editted_list_position))
 
 
-def int_to_float_str(price):
-    str_int_price = str(price)
-    return str_int_price[:-2] + "." + str_int_price[-2:]
+def category_creation(message, product_name):
+    logger.info(f"For the product \"{product_name}\" the user set the following category \"{message.text}\".")
+    # state.NEW_PRODUCTS_FOR_DATABASE.append({"name": f"{product_name}", "category": f"{message.text}"})
+    post_category_product("category", {"name": f"{message.text}"})
+# Here need to add check of the category id
+    # post_category_product("product", {"name": f"{product_name}", "category": f"{category_id}"})
+# Here should be a check if posting category and product were successful
+    bot.send_message(
+        message.chat.id,
+        f"The category \"{message.text}\" successfully set for the product {product_name}. "\
+        "Please correct the other products.",
+        reply_markup=create_price_name_buttons(state.PRODUCTS_ABSENT_IN_DATABASE, "ABSENT_IN_DATABASE"))
 
 
-def create_buttons():
-    if state.PRESENT_IN_DATABASE:
-        logger.info("Starting to form the buttons")
+def create_price_name_buttons(buttons_list, buttons_list_name): # сюда должна приходить цена в центах в виде int
+    if buttons_list:
+        logger.info(f"Starting to form the \"{buttons_list_name}\" buttons")
         markup = types.InlineKeyboardMarkup()
         buttons_in_a_row = []
-        len_present_in_database = len(state.PRESENT_IN_DATABASE)
-        for list_position in state.PRESENT_IN_DATABASE:
+        len_buttons_list = len(buttons_list)
+        for list_position in buttons_list:
             price = int_to_float_str(list_position["price"])
             list_position["price"] = price
             buttons_in_a_row.append(types.InlineKeyboardButton(
@@ -125,13 +175,45 @@ def create_buttons():
             if len(buttons_in_a_row) == 2:
                 markup.row(*buttons_in_a_row)
                 buttons_in_a_row = []
-            elif (len(buttons_in_a_row) == 1) and (len_present_in_database == 1):
+            elif (len(buttons_in_a_row) == 1) and (len_buttons_list == 1):
                 markup.add(*buttons_in_a_row)
-            len_present_in_database -= 1
-        no_button = types.InlineKeyboardButton("Nothing to edit", callback_data="Nothing to edit")
+            len_buttons_list -= 1
+        if buttons_list_name == "PRESENT_IN_DATABASE":
+            no_button = types.InlineKeyboardButton("Nothing to edit", callback_data="Nothing_to_edit_after_PRESENT_IN_DATABASE")
+        elif buttons_list_name == "ABSENT_IN_DATABASE":
+            no_button = types.InlineKeyboardButton("Nothing to edit", callback_data="Nothing_to_edit_after_ABSENT_IN_DATABASE")
         markup.add(no_button)
+    logger.info(f"The \"{buttons_list_name}\" buttons were formed successfully")
     return markup
 
 
+def create_category_buttons(product_requiring_category):
+    if state.EXISTING_CATEGORIES:
+        logger.info("Starting to form the category buttons")
+        markup = types.InlineKeyboardMarkup()
+        buttons_in_a_row = []
+        len_buttons_list = len(state.EXISTING_CATEGORIES)
+        for category in state.EXISTING_CATEGORIES:
+            buttons_in_a_row.append(types.InlineKeyboardButton((category), 
+                callback_data=f"existing_cat:{category}, prod:{product_requiring_category}"))
+            if len(buttons_in_a_row) == 2:
+                markup.row(*buttons_in_a_row)
+                buttons_in_a_row = []
+            elif (len(buttons_in_a_row) == 1) and (len_buttons_list == 1):
+                markup.add(*buttons_in_a_row)
+            len_buttons_list -= 1
+        category_creation = types.InlineKeyboardButton("Create a new category",
+            callback_data=f"category_creation, prod:{product_requiring_category}")
+        markup.add(category_creation)
+        logger.debug(f"markup.to_dict {markup.to_dict()}")
+    return markup
 
 
+def get_category_id(category_name):
+    for category in state.EXISTING_CATEGORIES_WITH_ID:
+        logger.info(f"category_name = {category_name}")
+        logger.info(f"category = {category}")
+        if category["name"] == category_name:
+            logger.info(f"Id for category \"{category["name"]}\" = {category["id"]}")
+            return category["id"]
+        break

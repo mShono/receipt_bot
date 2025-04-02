@@ -12,3 +12,4 @@ UNSUCCESSFUL_RECEIPT_UPLOADING = "Unfortunately, we were unable to upload your r
 SUCCESSFUL_RECOGNITION = "The following products were recognised successfully 😌 Do you want to edit the price?"
 UNSUCCESSFUL_RECOGNITION = "The following products are missing from our database. 🤷‍♂️ Do you want to add them?"
 ASKING_IF_THE_PRICE_EDITION_IS_NEEDED = "Do you want to edit the other product price?"
+UPLOAD_EXPENCE = "Uploading expense to database"

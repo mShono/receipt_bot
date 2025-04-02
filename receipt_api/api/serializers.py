@@ -8,6 +8,7 @@ class CategorySerializer(serializers.ModelSerializer):
         model = Category
         fields = (
             "name",
+            "id"
         )
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -15,6 +16,8 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = (
             "name",
+            "id",
+            "category"
         )
 
 
