@@ -3,10 +3,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from .models import (Category, Product, Currency, User,
-                           Expense)
+                           Expense, ExpenseItem)
 from .serializers import (CategorySerializer, ProductSerializer,
                           CurrencySerializer, UserSerializer,
-                          ExpenseSerializer)
+                          ExpenseSerializer, ExpenseItemSerializer)
 
 class CategoryViewSet(ModelViewSet):
 
@@ -23,6 +23,8 @@ class ProductViewSet(ModelViewSet):
 
 
     def list(self, request, *args, **kwargs):
+        """Redefining the list function so that it returns status.HTTP_404_NOT_FOUND"""
+
         queryset = self.filter_queryset(self.get_queryset())
 
         if not queryset.exists():
@@ -68,9 +70,17 @@ class UserViewSet(ModelViewSet):
 
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    filter_backends = (filters.SearchFilter,)
+    search_fields = ('=username',) 
 
 
 class ExpenseViewSet(ModelViewSet):
 
     queryset = Expense.objects.all()
     serializer_class = ExpenseSerializer
+
+
+class ExpenseItemViewSet(ModelViewSet):
+
+    queryset = ExpenseItem.objects.all()
+    serializer_class = ExpenseItemSerializer
