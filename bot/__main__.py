@@ -8,7 +8,7 @@ from telebot import TeleBot, types
 
 from . import messages
 from . import state
-from .bot_utils import process_price_edit, process_name_edit, category_creation, get_category_id
+from .bot_utils import process_price_edit, process_name_edit, category_creation, get_category_id, collecting_data_to_post_expence
 from .buttons import price_name_buttons
 from .django_interaction import check_list_of_products_existence, post_category_product
 from .file_saving import file_saving
@@ -103,6 +103,7 @@ def callback_price_edit(call):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("Nothing_to_edit_after_ABSENT_IN_DATABASE"))
 def callback_price_edit(call):
     # post_category_product("product", state.NEW_PRODUCTS_FOR_DATABASE)
+    collecting_data_to_post_expence(call.message)
     bot.send_message(
         call.message.chat.id,
         messages.UPLOAD_EXPENCE)
@@ -141,7 +142,6 @@ def callback_existing_category(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("category_creation"))
 def callback_category_creation(call):
-# done!
     try:
         _, product_info = call.data.split(",", 1)
         _, product_name = product_info.split(":", 1)

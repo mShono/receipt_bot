@@ -10,7 +10,7 @@ from . import messages
 from . import state
 from .buttons import price_name_buttons, category_buttons
 from .conversions import float_to_int
-from .django_interaction import check_one_product_existence, check_existent_categories, post_category_product
+from .django_interaction import check_one_product_existence, check_existent_categories, post_category_product, post_expense, get_user_info
 
 load_dotenv()
 
@@ -113,7 +113,7 @@ def process_name_edit(message, editted_list_position, buttons_list):
         if list_position == editted_list_position:
             list_position["name"] = message.text
     logger.info(f"Updated {old_name} to {editted_list_position["name"]}")
-    status = check_one_product_existence(product=message.text)
+    status, _ = check_one_product_existence(product=message.text)
     if not status:
         check_existent_categories()
         bot.send_message(
@@ -167,3 +167,25 @@ def get_category_id(category_name):
             logger.info(f"Id for category \"{category["name"]}\" = {category["id"]}")
             return category["id"]
         break
+
+def collecting_data_to_post_expence(message):
+    state.NEW_EXPENSE.extend(state.PRODUCTS_PRESENT_IN_DATABASE)
+    state.NEW_EXPENSE.extend(state.PRODUCTS_ABSENT_IN_DATABASE)
+    logger.info(f"NEW_EXPENSE = {state.NEW_EXPENSE}")
+            #     "user",
+            # "category",
+            # "product",
+            # "amount",
+    expense_dict = {}
+    expense_dict["user"] = get_user_info(message.chat.username)
+    _, expence_id = post_expense(expense_dict)
+    # Here we should do all future changes only if _ is True
+    for item in state.NEW_EXPENSE:
+        _, product_info = check_one_product_existence(item["name"])
+        logger.info(f"product_info = {product_info}")
+        item["expense"] = expence_id
+        item["product"] = product_info["id"]
+        item["price"] = float_to_int(item["price"])
+        item.pop("name")
+    logger.info(f"state.NEW_EXPENSE = {state.NEW_EXPENSE}")
+    # post_expense()
