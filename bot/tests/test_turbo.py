@@ -3,7 +3,7 @@ import logging
 import os
 
 from ..receipt_open_ai_turbo import open_ai_turbo
-from ..file_saving import file_saving
+from ..file_operations import file_saving
 from PIL import Image
 
 RECEIPT_PHOTO_PATH = os.path.join(os.getcwd(), "test_receipts")

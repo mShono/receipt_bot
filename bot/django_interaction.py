@@ -24,58 +24,16 @@ DJANGO_API_URL = os.getenv("DJANGO_API_URL")
 UPLOAD_FOLDER = "uploaded_receipts"
 
 
-def file_opening(filepath):
+def get_data_info(endpoint, data):
+    logger.info(f"Checking the existance of the {endpoint} \"{data}\" in the database")
     try:
-        logger.info(f"Opening the json ai response {filepath}")
-        with open(filepath) as f:
-            shopping_list = json.load(f)
-        logger.info(f"file_content = {shopping_list}")
-        return shopping_list
-    except Exception as e:
-        logger.error(f"Opening the json file with products failed: {e}")
-        raise e
-
-
-def check_list_of_products_existence(filepath):
-    shopping_list = file_opening(filepath)
-    logger.info("Start sending requests to Django database")
-    for list_position in shopping_list:
-        try:
-            product = list_position["name"]
-            price = list_position["price"]
-        except Exception as e:
-            logger.error(f"Reading the json file with products failed: {e}")
-            raise e
-        integer_price = float_to_int(price)
-        list_position["price"] = integer_price
-        try:
-            response = requests.get(f"{DJANGO_API_URL}product/?search={product}", headers=headers)
-            if response.status_code == 200:
-                state.PRODUCTS_PRESENT_IN_DATABASE.append(list_position)
-            elif response.status_code == 404:
-                state.PRODUCTS_ABSENT_IN_DATABASE.append(list_position)
-            else:
-                logger.info(f"Received an unpredictable response from Django database: {response.status_code}")
-        except Exception as e:
-            logger.error(f"An unexpected error occurred when requesting Django: {e}")
-            raise e
-    logger.info(f"PRODUCTS_PRESENT_IN_DATABASE = {state.PRODUCTS_PRESENT_IN_DATABASE}")
-    logger.info(f"PRODUCTS_ABSENT_IN_DATABASE = {state.PRODUCTS_ABSENT_IN_DATABASE}")
-    return
-
-
-def check_one_product_existence(product):
-    logger.info(f"Checking the existance of the product \"{product}\" in the database")
-    try:
-        response = requests.get(f"{DJANGO_API_URL}product/?search={product}", headers=headers)
+        response = requests.get(f"{DJANGO_API_URL}{endpoint}/?search={data}", headers=headers)
         if response.status_code == 200:
-            # product_info = []
-            logger.info(f"The product \"{product}\" is in the database")
-            # product_info.extend(json.loads(response.text))
-            product_info = json.loads(response.text)
-            return True, product_info[0]
+            logger.info(f"\"{data}\" is in the database")
+            data_info = json.loads(response.text)
+            return True, data_info[0]
         elif response.status_code == 404:
-            logger.info(f"The product \"{product}\" is not in the database")
+            logger.info(f"\"{data}\" is not in the database")
             return False, None
         else:
             logger.info(f"Received an unpredictable response from Django database: {response.status_code}")
@@ -86,6 +44,7 @@ def check_one_product_existence(product):
 
 
 def check_existent_categories():
+    logger.info("Checking the categories existing in the database")
     try:
         response = requests.get(f"{DJANGO_API_URL}category/", headers=headers)
         if response.status_code == 200:
@@ -108,7 +67,7 @@ def check_existent_categories():
     return
 
 
-def post_category_product(endpoint, data):
+def post_data_info(endpoint, data):
     logger.info(f"Posting to the endpoint \"{endpoint}\" the following data \"{data}\"")
     url = f"{DJANGO_API_URL}{endpoint}/"
     try:
@@ -126,34 +85,7 @@ def post_category_product(endpoint, data):
         logger.error(f"Error posting {endpoint} data: {e}")
         raise e
 
-def get_user_info(username):
-    logger.info(f"Getting the user's id from the database")
-    try:
-        response = requests.get(f"{DJANGO_API_URL}users/?search={username}", headers=headers)
-        logger.info(f"username = {username}")
-        if response.status_code == 200:
-            logger.info(f"The \"{username}\" info successfully received from the database")
-        elif response.status_code == 404:
-            logger.info(f"The user \"{username}\" is not in the database")
-            return False
-        else:
-            logger.info(f"Received an unpredictable response from Django database: {response.status_code}")
-            return False
-    except Exception as e:
-        logger.error(f"Error geting the user data from the database: {e}")
-        raise e
-    try:
-        for user_info in response.json():
-            logger.info(f"user_info = {user_info}")
-            logger.info(f"user_info['id'] = {user_info['id']}")
-            return user_info["id"]
-    except Exception as e:
-        logger.error(f"Reading the json file with products failed: {e}")
-        raise e
-
-
 def post_expense(data):
-
     logger.info(f"Posting to the endpoint 'expense' the following data")
     url = f"{DJANGO_API_URL}expense/"
     try:

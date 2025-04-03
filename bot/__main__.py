@@ -8,10 +8,10 @@ from telebot import TeleBot, types
 
 from . import messages
 from . import state
-from .bot_utils import process_price_edit, process_name_edit, category_creation, get_category_id, collecting_data_to_post_expence
+from .bot_utils import process_price_edit, process_name_edit, category_creation, get_category_id, collecting_data_to_post_expence, collecting_data_to_get_products
 from .buttons import price_name_buttons
-from .django_interaction import check_list_of_products_existence, post_category_product
-from .file_saving import file_saving
+from .django_interaction import post_data_info
+from .file_operations import file_saving
 from .receipt_recognition import recognition_ocr_mini, recognition_turbo
 
 
@@ -102,7 +102,7 @@ def callback_price_edit(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("Nothing_to_edit_after_ABSENT_IN_DATABASE"))
 def callback_price_edit(call):
-    # post_category_product("product", state.NEW_PRODUCTS_FOR_DATABASE)
+    # post_data_info("product", state.NEW_PRODUCTS_FOR_DATABASE)
     collecting_data_to_post_expence(call.message)
     bot.send_message(
         call.message.chat.id,
@@ -124,7 +124,7 @@ def callback_existing_category(call):
 
     logger.info(f"The user assigns the category \"{category_name}\" for the following product: \"{product_name}\"")
     category_id = get_category_id(category_name)
-    status, _ = post_category_product("product", {"name": f"{product_name}", "category": category_id})
+    status, _ = post_data_info("product", {"name": f"{product_name}", "category": category_id})
     if status:
         bot.send_message(
             call.message.chat.id,
@@ -268,7 +268,7 @@ def handle_receipt_photo(message):
     # filepath = recognition_turbo(file_name)
     # check_list_of_products_existence(filepath)
     filepath = "/home/masher/development/receipt_bot/uploaded_receipts/382807642_receipt_product_ai.json"
-    check_list_of_products_existence(filepath)
+    collecting_data_to_get_products(filepath)
     if state.PRODUCTS_PRESENT_IN_DATABASE:
         markup = price_name_buttons(state.PRODUCTS_PRESENT_IN_DATABASE, "PRESENT_IN_DATABASE")
         bot.send_message(

@@ -1,8 +1,21 @@
 import logging
+import json
 import os
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+def file_opening(filepath):
+    try:
+        logger.info(f"Opening the json ai response {filepath}")
+        with open(filepath) as f:
+            shopping_list = json.load(f)
+        logger.info(f"file_content = {shopping_list}")
+        return shopping_list
+    except Exception as e:
+        logger.error(f"Opening the json file with products failed: {e}")
+        raise e
+
 
 def file_saving(UPLOAD_FOLDER, file_name, saving_item, mode, recognition_stage):
     upload_dir = os.path.join(os.getcwd(), UPLOAD_FOLDER)

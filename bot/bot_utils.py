@@ -10,7 +10,8 @@ from . import messages
 from . import state
 from .buttons import price_name_buttons, category_buttons
 from .conversions import float_to_int
-from .django_interaction import check_one_product_existence, check_existent_categories, post_category_product, post_expense, get_user_info
+from .django_interaction import get_data_info, check_existent_categories, post_data_info, post_expense
+from .file_operations import file_opening
 
 load_dotenv()
 
@@ -24,6 +25,8 @@ headers = {
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+
 
 def price_validation(price):
     try:
@@ -113,7 +116,7 @@ def process_name_edit(message, editted_list_position, buttons_list):
         if list_position == editted_list_position:
             list_position["name"] = message.text
     logger.info(f"Updated {old_name} to {editted_list_position["name"]}")
-    status, _ = check_one_product_existence(product=message.text)
+    status, _ = get_data_info("product", message.text)
     if not status:
         check_existent_categories()
         bot.send_message(
@@ -138,14 +141,37 @@ def process_name_edit(message, editted_list_position, buttons_list):
     #     reply_markup=yes_no_buttons(editted_list_position))
 
 
+def collecting_data_to_get_products(filepath):
+    shopping_list = file_opening(filepath)
+    logger.info("Start collecting poduct data")
+    for list_position in shopping_list:
+        try:
+            product_name = list_position["name"]
+            price = list_position["price"]
+        except Exception as e:
+            logger.error(f"Reading the json file with products failed: {e}")
+            raise e
+        integer_price = float_to_int(price)
+        list_position["price"] = integer_price
+        status, product_info = get_data_info("product", product_name)
+        if status == True:
+            list_position["id"] = product_info["id"]
+            state.PRODUCTS_PRESENT_IN_DATABASE.append(list_position)
+        else:
+            state.PRODUCTS_ABSENT_IN_DATABASE.append(list_position)
+    logger.info(f"PRODUCTS_PRESENT_IN_DATABASE = {state.PRODUCTS_PRESENT_IN_DATABASE}")
+    logger.info(f"PRODUCTS_ABSENT_IN_DATABASE = {state.PRODUCTS_ABSENT_IN_DATABASE}")
+    return
+
+
 def category_creation(message, product_name):
     logger.info(f"For the product \"{product_name}\" the user set the following category \"{message.text}\".")
     try:
-        post_category_status, new_category_id = post_category_product("category", {"name": f"{message.text}"})
+        post_category_status, new_category_id = post_data_info("category", {"name": f"{message.text}"})
         if not post_category_status:
             messages.send_error_message(message, product_name)
             return
-        post_product_status, _ = post_category_product("product", {"name": f"{product_name}", "category": f"{new_category_id}"})
+        post_product_status, _ = post_data_info("product", {"name": f"{product_name}", "category": f"{new_category_id}"})
         if post_product_status:
             bot.send_message(
                 message.chat.id,
@@ -161,12 +187,20 @@ def category_creation(message, product_name):
 
 def get_category_id(category_name):
     for category in state.EXISTING_CATEGORIES_WITH_ID:
-        logger.info(f"category_name = {category_name}")
-        logger.info(f"category = {category}")
         if category["name"] == category_name:
             logger.info(f"Id for category \"{category["name"]}\" = {category["id"]}")
             return category["id"]
         break
+
+
+def collecting_user_info(username):
+    status, user_info = get_data_info("users", username)
+    try:
+        return user_info["id"]
+    except Exception as e:
+        logger.error(f"Reading the json file respond with user info failed: {e}")
+        raise e
+
 
 def collecting_data_to_post_expence(message):
     state.NEW_EXPENSE.extend(state.PRODUCTS_PRESENT_IN_DATABASE)
@@ -177,11 +211,11 @@ def collecting_data_to_post_expence(message):
             # "product",
             # "amount",
     expense_dict = {}
-    expense_dict["user"] = get_user_info(message.chat.username)
-    _, expence_id = post_expense(expense_dict)
+    expense_dict["user"] = collecting_user_info(message.chat.username)
+    _, expence_id = post_data_info("expense", expense_dict)
     # Here we should do all future changes only if _ is True
     for item in state.NEW_EXPENSE:
-        _, product_info = check_one_product_existence(item["name"])
+        _, product_info = get_data_info("product", item["name"])
         logger.info(f"product_info = {product_info}")
         item["expense"] = expence_id
         item["product"] = product_info["id"]

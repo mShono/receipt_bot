@@ -3,7 +3,7 @@ import logging
 import os
 
 from ..receipt_ocr_test import receipt_ocr
-from ..file_saving import file_saving
+from ..file_operations import file_saving
 from PIL import Image
 from tesserocr import PSM
 
