@@ -84,3 +84,5 @@ class ExpenseItemViewSet(ModelViewSet):
 
     queryset = ExpenseItem.objects.all()
     serializer_class = ExpenseItemSerializer
+    filter_backends = (filters.SearchFilter,)
+    search_fields = ('=id',) 

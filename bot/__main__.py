@@ -8,9 +8,9 @@ from telebot import TeleBot, types
 
 from . import messages
 from . import state
-from .bot_utils import process_price_edit, process_name_edit, category_creation, get_category_id, collecting_data_to_post_expence, collecting_data_to_get_products
+from .bot_utils import process_price_edit, process_name_edit, category_creation, get_category_id, collecting_data_to_post_expence, collecting_data_to_get_products, collecting_data_to_post_item
 from .buttons import price_name_buttons
-from .django_interaction import post_data_info
+from .django_interaction import post_data_info, get_data_info
 from .file_operations import file_saving
 from .receipt_recognition import recognition_ocr_mini, recognition_turbo
 
@@ -102,11 +102,28 @@ def callback_price_edit(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("Nothing_to_edit_after_ABSENT_IN_DATABASE"))
 def callback_price_edit(call):
-    # post_data_info("product", state.NEW_PRODUCTS_FOR_DATABASE)
-    collecting_data_to_post_expence(call.message)
     bot.send_message(
         call.message.chat.id,
         messages.UPLOAD_EXPENCE)
+    post_expence_status, expence_id = collecting_data_to_post_expence(call.message)
+    if post_expence_status:
+        post_item_status = collecting_data_to_post_item(expence_id)
+        if post_item_status:
+            bot.send_message(
+                call.message.chat.id,
+                messages.SUCCESSFUL_UPLOAD_EXPENCE)
+            _, expense_info = get_data_info("expense", expence_id)
+            logger.info(f"expense info = {expense_info}")
+        else:
+            bot.send_message(
+                call.message.chat.id,
+                messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
+    else:
+        bot.send_message(
+            call.message.chat.id,
+            messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
+
+
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("existing_cat"))

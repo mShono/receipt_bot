@@ -81,23 +81,20 @@ def price_validation(price):
 def process_price_edit(message, editted_list_position, buttons_list, buttons_list_name):
     logger.info(f"For {editted_list_position} the user set the following price \"{message.text}\". Price validation launched")
     new_price = message.text
-    validity, validated_price = price_validation(new_price)
-    logger.info(f"validity =  {validity}")
-    if not validity:
+    status, validated_price = price_validation(new_price)
+    logger.info(f"price validation status =  {status}")
+    if not status:
         logger.info("Invalid price entered.")
         bot.send_message(
         message.chat.id,
         f"Can't set a {validated_price} price to \"{editted_list_position["name"]}\". "\
         "Please, enter a correct price with two digits after point",
-        reply_markup=price_name_buttons())
+        reply_markup=price_name_buttons(buttons_list, buttons_list_name))
     else:
         for list_position in buttons_list:
-            price = list_position["price"]
             if list_position == editted_list_position:
-                price = validated_price
-            integer_price = float_to_int(price)
-            list_position["price"] = integer_price
-            logger.info(f"Updated {list_position["name"]} price to {list_position["price"]}")
+                list_position["price"] = float_to_int(validated_price)
+        logger.info(f"Updated {list_position["name"]} price to {list_position["price"]}")
         logger.info(f"buttons_list = {buttons_list}")
         bot.send_message(
             message.chat.id,
@@ -110,9 +107,6 @@ def process_name_edit(message, editted_list_position, buttons_list):
     logger.info(f"For \"{editted_list_position}\" the user set the following name \"{message.text}\".")
     old_name = editted_list_position["name"]
     for list_position in buttons_list:
-        # price = list_position["price"]
-        # integer_price = float_to_int(price)
-        # list_position["price"] = integer_price
         if list_position == editted_list_position:
             list_position["name"] = message.text
     logger.info(f"Updated {old_name} to {editted_list_position["name"]}")
@@ -130,7 +124,6 @@ def process_name_edit(message, editted_list_position, buttons_list):
             f"Updated \"{old_name}\" to \"{message.text}\". "\
             "Please correct the other products.",
             reply_markup=price_name_buttons(state.PRODUCTS_ABSENT_IN_DATABASE, "ABSENT_IN_DATABASE"))
-    # Here I need to add an algorithm in case the product name entered by the user is in the database.
 
     # price edition will be te future feature
     # logger.info(f"buttons_list = {buttons_list}")
@@ -144,6 +137,8 @@ def process_name_edit(message, editted_list_position, buttons_list):
 def collecting_data_to_get_products(filepath):
     shopping_list = file_opening(filepath)
     logger.info("Start collecting poduct data")
+    state.PRODUCTS_PRESENT_IN_DATABASE.clear()
+    state.PRODUCTS_ABSENT_IN_DATABASE.clear()
     for list_position in shopping_list:
         try:
             product_name = list_position["name"]
@@ -206,14 +201,23 @@ def collecting_data_to_post_expence(message):
     state.NEW_EXPENSE.extend(state.PRODUCTS_PRESENT_IN_DATABASE)
     state.NEW_EXPENSE.extend(state.PRODUCTS_ABSENT_IN_DATABASE)
     logger.info(f"NEW_EXPENSE = {state.NEW_EXPENSE}")
-            #     "user",
-            # "category",
-            # "product",
-            # "amount",
     expense_dict = {}
-    expense_dict["user"] = collecting_user_info(message.chat.username)
-    _, expence_id = post_data_info("expense", expense_dict)
-    # Here we should do all future changes only if _ is True
+    status, user_info = get_data_info("users", message.chat.username)
+    try:
+        expense_dict["user"] = user_info["id"]
+    except Exception as e:
+        logger.error(f"Reading the json file respond with user info failed: {e}")
+        raise e
+    # expense_dict["user"] = collecting_user_info(message.chat.username)
+    status, expence_id = post_data_info("expense", expense_dict)
+    if status:
+        return True, expence_id
+    else:
+        return False, None
+
+
+def collecting_data_to_post_item(expence_id):
+    statuses = []
     for item in state.NEW_EXPENSE:
         _, product_info = get_data_info("product", item["name"])
         logger.info(f"product_info = {product_info}")
@@ -221,5 +225,11 @@ def collecting_data_to_post_expence(message):
         item["product"] = product_info["id"]
         item["price"] = float_to_int(item["price"])
         item.pop("name")
-    logger.info(f"state.NEW_EXPENSE = {state.NEW_EXPENSE}")
-    # post_expense()
+        post_item_status, _ = post_data_info("expense_item", item)
+        statuses.append(post_item_status)
+    if False in statuses:
+        return False
+    else:
+        state.NEW_EXPENSE.clear()
+        return True
+
