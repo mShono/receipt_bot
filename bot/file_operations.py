@@ -50,3 +50,22 @@ def file_saving(UPLOAD_FOLDER, file_name, saving_item, mode, recognition_stage):
     except Exception as e:
         logger.error(f"{error}, {e}")
         return None
+
+def response_saving(RESPONSE_FOLDER, file_name, saving_item):
+    upload_dir = os.path.join(os.getcwd(), RESPONSE_FOLDER)
+    if not os.path.exists(upload_dir):
+        os.makedirs(upload_dir) 
+        logger.info(f"Created a folder {RESPONSE_FOLDER} at {os.getcwd()}")
+
+    error = "File saving error: "
+    filepath = f"{os.path.join(upload_dir, file_name)}.txt"
+
+    try:
+        logger.info("Response saving launched")
+        with open(filepath, "w") as file:
+            file.write(saving_item)
+            logger.info(f"Response saved successfully, {filepath}")
+        return True, filepath
+    except Exception as e:
+        logger.error(f"{error}, {e}")
+        return None

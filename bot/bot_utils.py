@@ -10,7 +10,7 @@ from . import messages
 from . import state
 from .buttons import price_name_buttons, category_buttons
 from .conversions import float_to_int
-from .django_interaction import get_data_info, check_existent_categories, post_data_info, post_expense
+from .django_interaction import get_data_info, check_existent_categories, post_data_info
 from .file_operations import file_opening
 
 load_dotenv()
@@ -177,20 +177,22 @@ def category_creation(message, product_name):
     try:
         post_category_status, new_category_id = post_data_info("category", {"name": f"{message.text}"})
         if not post_category_status:
-            messages.send_error_message(message, product_name)
+            messages.send_error_message(message, product_name, context, "category")
             return
+    except Exception as e:
+        messages.send_error_message(message, product_name, context,"category")
+    try:
         post_product_status, _ = post_data_info("product", {"name": f"{product_name}", "category": f"{new_category_id}"})
-        if post_product_status:
-            bot.send_message(
+        if not post_product_status:
+            messages.send_error_message(message, product_name, context, "product")
+            return
+        bot.send_message(
                 message.chat.id,
                 f"The category \"{message.text}\" successfully set for the product \"{product_name}\". "\
                 "Please correct the other products.",
                 reply_markup=price_name_buttons(context))
-        else:
-            messages.send_error_message(message, product_name)
-            return
     except Exception as e:
-        messages.send_error_message(message, product_name)
+        messages.send_error_message(message, product_name, context, "product")
 
 
 def get_category_id(category_name, context):
@@ -201,19 +203,29 @@ def get_category_id(category_name, context):
         break
 
 
-def collecting_user_info(username):
-    status, user_info = get_data_info("users", username)
-    try:
-        return user_info["id"]
-    except Exception as e:
-        logger.error(f"Reading the json file respond with user info failed: {e}")
-        raise e
+def collecting_data_and_post_user(message):
+    user_info = {
+        "chat_id": message.chat.id,
+        "username": message.chat.username,
+        "first_name": message.chat.first_name,
+        "last_name": message.chat.last_name,
+    }
+    logger.info(f"Information has been collected, user_info = {user_info}")
+    post_user_status, user_info = post_data_info("users", user_info)
+    return post_user_status, user_info
 
 
-def collecting_data_to_post_expence(message):
+def collecting_data_and_post_expence(message):
     context = state.UserContext[message.chat.id]
     if not context.new_expense:
-        status, user_info = get_data_info("users", message.chat.username)
+        get_user_info_status, user_info = get_data_info("users", message.chat.username)
+        if not get_user_info_status:
+            post_user_status, user_id = collecting_data_and_post_user(message)
+            if not post_user_status:
+                return False, None
+        else:
+            user_id = user_info["id"]
+        logger.info(f"user_id = {user_id}")
     context.stage = "new_expense"
     context.new_expense.extend(context.products_present_in_database)
     context.products_present_in_database.clear()
@@ -221,22 +233,22 @@ def collecting_data_to_post_expence(message):
     context.products_absent_in_database.clear()
     logger.info(f"new_expense = {context.new_expense}")
     expense_dict = {}
-    if status:
-        try:
-            expense_dict["user"] = user_info["id"]
-        except Exception as e:
-            logger.error(f"Reading the json file respond with user info failed: {e}")
-            raise e
-        status, expence_id = post_data_info("expense", expense_dict)
-        context.expence_id = expence_id
-        return True, expence_id
-    else:
-        return False, expence_id
-    # Here I should post the user info in database - rewrite the callback for Register button
+
+    try:
+        expense_dict["user"] = user_id
+        logger.info(f"expense_dict['user'] = {expense_dict['user']}")
+    except Exception as e:
+        logger.error(f"Reading the json file response with user info failed: {e}")
+        raise e
+    post_expense_status, expence_id = post_data_info("expense", expense_dict)
+    if not post_expense_status:
+        return False, None
+    context.expence_id = expence_id
+    return True, expence_id
 
 
-def collecting_data_to_post_item(call):
-    context = state.UserContext[call.message.chat.id]
+def collecting_data_and_post_item(message):
+    context = state.UserContext[message.chat.id]
     expence_id = context.expence_id
     statuses = []
     logger.info(f"context.new_expense = {context.new_expense}")
@@ -258,7 +270,7 @@ def collecting_data_to_post_item(call):
             context.new_expense.insert(0, item)
             check_existent_categories(context)
             bot.send_message(
-            call.message.chat.id,
+            message.chat.id,
             f"The product \"{item["name"]}\" is not in our database. "\
             "Please enter it's category.",
             reply_markup=category_buttons(item["name"], context))
@@ -266,7 +278,7 @@ def collecting_data_to_post_item(call):
             # break
     if False in statuses:
         bot.send_message(
-            call.message.chat.id,
+            message.chat.id,
             messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
         # return False
     else:

@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import requests
 
 from .conversions import float_to_int
+from .file_operations import response_saving
 from . import state
 
 logging.basicConfig(level=logging.DEBUG)
@@ -21,7 +22,7 @@ headers = {
 }
 
 DJANGO_API_URL = os.getenv("DJANGO_API_URL")
-UPLOAD_FOLDER = "uploaded_receipts"
+RESPONSE_FOLDER = "database_responses"
 
 
 def get_data_info(endpoint, data):
@@ -37,9 +38,11 @@ def get_data_info(endpoint, data):
             return False, None
         else:
             logger.info(f"Received an unpredictable response from Django database: {response.status_code}")
+            response_saving(RESPONSE_FOLDER, f"{endpoint}_get_data", response.text)
             return False, None
     except Exception as e:
-        logger.error(f"Reading the json file with products failed: {e}")
+        logger.error(f"Reading the json file with {endpoint} failed: {e}")
+        response_saving(RESPONSE_FOLDER, f"{endpoint}_get_data", response.text)
         raise e
 
 
@@ -49,9 +52,11 @@ def check_existent_categories(context):
         response = requests.get(f"{DJANGO_API_URL}category/", headers=headers)
         if response.status_code != 200:
             logger.info(f"Received an unpredictable response from Django database: {response.status_code}")
+            response_saving(RESPONSE_FOLDER, f"check_existent_categories", response.text)
             return None
     except Exception as e:
         logger.error(f"The request for database for existent categories failed: {e}")
+        response_saving(RESPONSE_FOLDER, f"check_existent_categories", response.text)
         return None
     context.existing_categories.clear()
     context.existing_categories_with_id.clear()
@@ -74,32 +79,16 @@ def post_data_info(endpoint, data):
         response = requests.post(url, headers=headers, json=data)
         if response.status_code == 201:
             logger.info(f"The {endpoint} data \"{data}\" was successfully posted to the database")
-            logger.info(f"response.text = {response.text}")
             new_item = response.json()
             return True, new_item["id"]
         else:
             logger.info(f"Posting {endpoint} data \"{data}\" to the database was unsuccessfull")
             logger.info(f"response.status_code = {response.status_code}")
+            response_saving(RESPONSE_FOLDER, f"{endpoint}_post_data", response.text)
             return False, None
     except Exception as e:
         logger.error(f"Error posting {endpoint} data: {e}")
-        raise e
-
-def post_expense(data):
-    logger.info(f"Posting to the endpoint 'expense' the following data")
-    url = f"{DJANGO_API_URL}expense/"
-    try:
-        response = requests.post(url, headers=headers, json=data)
-        if response.status_code == 201:
-            logger.info(f"The expense data \"{data}\" was successfully posted to the database")
-            new_expense = response.json()
-            return True, new_expense["id"]
-        else:
-            logger.info(f"Posting expense data \"{data}\" to the database was unsuccessfull")
-            logger.info(f"response.status_code = {response.status_code}")
-            return False, None
-    except Exception as e:
-        logger.error(f"Error posting expense data: {e}")
+        response_saving(RESPONSE_FOLDER, f"{endpoint}_post_data", response.text)
         raise e
 
 # filepath = "/home/masher/development/receipt_bot/uploaded_receipts/382807642_receipt_product_ai.json"

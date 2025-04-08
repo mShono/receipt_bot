@@ -8,7 +8,7 @@ from telebot import TeleBot, types
 
 from . import messages
 from . import state
-from .bot_utils import process_price_edit, process_name_edit, category_creation, get_category_id, collecting_data_to_post_expence, collecting_data_to_get_products, collecting_data_to_post_item
+from .bot_utils import process_price_edit, process_name_edit, category_creation, get_category_id, collecting_data_and_post_expence, collecting_data_to_get_products, collecting_data_and_post_item, collecting_data_and_post_user
 from .buttons import price_name_buttons
 from .django_interaction import post_data_info, get_data_info
 from .file_operations import file_saving
@@ -29,7 +29,6 @@ headers = {
 }
 
 UPLOAD_FOLDER = "uploaded_receipts"
-# PRESENT_IN_DATABASE = []
 
 user_states = {}
 user_info = {}
@@ -58,6 +57,23 @@ def wake_up(message):
         text=messages.INVITATION_TO_REGISTER,
         reply_markup=markup)
     logger.info("Invitation for registration sent")
+
+@bot.callback_query_handler(func=lambda call: call.data == "Register")
+def callback_register(call):
+    message = call.message
+    post_user_status, _ = collecting_data_and_post_user(message)
+    if not post_user_status:
+        bot.send_message(message.chat.id, messages.UNSUCCESSFUL_REGISTRATION)
+        return
+    bot.send_message(message.chat.id, messages.SUCCESSFUL_REGISTRATION)
+    markup = types.InlineKeyboardMarkup()
+    upload_receipt_button = types.InlineKeyboardButton("Upload receipt", callback_data="Upload receipt")
+    markup.add(upload_receipt_button)
+    bot.send_message(
+        chat_id=message.chat.id,
+        text=messages.UPLOAD_RECEIRT_FIRST,
+        reply_markup=markup)
+    logger.info("Showed the 'Upload receipt' button")
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("price_edit_yes:"))
@@ -88,7 +104,7 @@ def callback_price_edit(call):
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("Nothing_to_edit_after_PRESENT_IN_DATABASE"))
-def callback_price_edit(call):
+def callback_nothing_after_present(call):
     context = state.UserContext[call.message.chat.id]
     context.stage = "products_absent_in_database"
     logger.info(f"ABSENT_IN_DATABASE = {context.products_absent_in_database}")
@@ -99,32 +115,22 @@ def callback_price_edit(call):
             messages.RECOGNIZED_PRODUCTS_MISSING_IN_DATABASE,
             reply_markup=markup)
         logger.info("Sent the absent in database products and asked for edition")
+        # Here I need a logic if there're no buttons absent_in_database
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("Nothing_to_edit_after_ABSENT_IN_DATABASE"))
-def callback_price_edit(call):
-    context = state.UserContext[call.message.chat.id]
+def callback_nothing_after_absent(call):
     bot.send_message(
         call.message.chat.id,
         messages.UPLOAD_EXPENCE)
-    post_expence_status, expence_id = collecting_data_to_post_expence(call.message)
+    post_expence_status, _ = collecting_data_and_post_expence(call.message)
     if not post_expence_status:
         bot.send_message(
             call.message.chat.id,
             messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
         return
 
-    collecting_data_to_post_item(call)
-    # post_item_status = collecting_data_to_post_item(call)
-    # if context.new_expense:
-    #     return
-    # if not post_item_status:
-    #     bot.send_message(
-    #         call.message.chat.id,
-    #         messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
-    #     return
-    # else:
-    #     messages.send_final_message(context)
+    collecting_data_and_post_item(call.message)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("exist_cat"))
@@ -135,8 +141,9 @@ def callback_existing_category(call):
         category_info, product_info = call.data.split(",", 1)
         _, category_name = category_info.split(":", 1)
         _, product_name = product_info.split(":", 1)
-        logger.debug(f"category_name = {category_name}")
-        logger.debug(f"product_name = {product_name}")
+        logger.info("Successful parsing callback_data")
+        logger.info(f"category_name = {category_name}")
+        logger.info(f"product_name = {product_name}")
     except Exception as e:
         logger.error(f"Error parsing callback_data: {call.data} - {e}")
         return
@@ -150,8 +157,7 @@ def callback_existing_category(call):
             bot.send_message(
             call.message.chat.id,
             f"The category \"{category_name}\" successfully set for the product {product_name}.")
-            collecting_data_to_post_item(call)
-            # Here I need to return back in collecting_data_to_post_item
+            collecting_data_and_post_item(call.message)
         elif "absent" in context.stage:
             bot.send_message(
                 call.message.chat.id,
@@ -159,20 +165,6 @@ def callback_existing_category(call):
                 "Please correct the other products.",
                 reply_markup=price_name_buttons(context)
             )
-        # else:
-        #     bot.send_message(
-        #     call.message.chat.id,
-        #     f"The category \"{category_name}\" successfully set for the product {product_name}.")
-        #     post_item_status = collecting_data_to_post_item(call)
-            # if not context.new_expense:
-            #     messages.send_final_message(context)
-            # if not post_item_status:
-            #     bot.send_message(
-            #         call.message.chat.id,
-            #         messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
-            #     return
-            # else:
-            #     messages.send_final_message(context)
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("categ_cr"))
@@ -180,6 +172,7 @@ def callback_category_creation(call):
     try:
         _, product_info = call.data.split(",", 1)
         _, product_name = product_info.split(":", 1)
+        logger.info("Successful parsing callback_data")
         logger.info(f"product_name = {product_name}")
     except Exception as e:
         logger.error(f"Error parsing callback_data: {call.data} - {e}")
@@ -203,33 +196,7 @@ def callback_inline(call):
 
     context = state.UserContext[message.chat.id]
 
-    if call.data == "Register":
-        user_info = {
-            "chat_id": message.chat.id,
-            "username": message.chat.username,
-            "first_name": message.chat.first_name,
-            "last_name": message.chat.last_name,
-        }
-        logger.info(f"Information has been collected, user_info = {user_info}")
-        response = requests.post(f"{DJANGO_API_URL}users/", json=user_info, headers=headers)
-        if response.status_code == 201:
-            logger.info(f"Registration successful, response.status_code = {response.status_code}")
-        else:
-            bot.send_message(message.chat.id, messages.UNSUCCESSFUL_REGISTRATION)
-            logger.info(f"Registratipon failed, response.text = {response.text}")
-            logger.error(f"response.status_code = {response.status_code}")
-            return
-        bot.send_message(message.chat.id, messages.SUCCESSFUL_REGISTRATION)
-        markup = types.InlineKeyboardMarkup()
-        upload_receipt_button = types.InlineKeyboardButton("Upload receipt", callback_data="Upload receipt")
-        markup.add(upload_receipt_button)
-        bot.send_message(
-            chat_id=message.chat.id,
-            text=messages.UPLOAD_RECEIRT_FIRST,
-            reply_markup=markup)
-        logger.info("Showed the 'Upload receipt' button")
-
-    elif call.data == "Upload receipt":
+    if call.data == "Upload receipt":
         bot.send_message(
             message.chat.id,
             messages.UPLOAD_RECEIRT)
@@ -266,8 +233,6 @@ def callback_inline(call):
             bot.register_next_step_handler(call.message, lambda message: process_name_edit(
                 message,
                 list_position)
-                # state.PRODUCTS_ABSENT_IN_DATABASE,
-                # "ABSENT_IN_DATABASE")
             )
             return
 
@@ -331,7 +296,6 @@ def handle_receipt_photo(message):
             messages.RECOGNIZED_PRODUCTS_MISSING_IN_DATABASE,
             reply_markup=markup)
         logger.info("Sent the absent in database products and asked for edition")
-        # Here I need a logic if there're no buttons absent_in_database
         return
     else:
         bot.send_message(

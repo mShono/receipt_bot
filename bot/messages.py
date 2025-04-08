@@ -29,7 +29,7 @@ RECEIPT_INST_IS_DOC = "You've uploaded receipt photo as a document. Please, uplo
 SUCCESSFUL_RECEIPT_UPLOADING = "Your receipt uploaded was successful! ✅"
 UNSUCCESSFUL_RECEIPT_UPLOADING = "Unfortunately, we were unable to upload your receipt right now 😔"
 SUCCESSFUL_RECOGNITION = "The following products were recognised successfully 😌 Do you want to edit the price?"
-RECOGNIZED_PRODUCTS_MISSING_IN_DATABASE = "The following products are missing from our database. 🤷‍♂️ Do you want to add them?"
+RECOGNIZED_PRODUCTS_MISSING_IN_DATABASE = "The following products are missing from our database. 🤷‍♂️ Please correct the name if needed before adding them."
 UNSUCCESSFUL_RECOGNITION = "Unfortunately, we were unable to recognize any products in that receipt 😔"
 ASKING_IF_THE_PRICE_EDITION_IS_NEEDED = "Do you want to edit the other product price?"
 UPLOAD_EXPENCE = "Uploading expense to database"
@@ -38,16 +38,23 @@ UNSUCCESSFUL_UPLOAD_EXPENCE = "Unfortunately, we were unable to upload your expe
 UNEXPECTED_ERROR = "Sorry, an unexpected error has occurred 🤷‍♂️"
 
 
-def send_error_message(message, product_name):
+def send_error_message(message, product_name, context, error_post_request):
     force_reply = types.ForceReply(selective=True)
+    if error_post_request == "category":
+        bot.send_message(
+            message.chat.id,
+            f"Something went wrong while creating category for \"{product_name}\". Please, try again:",
+            reply_markup=force_reply
+        )
+    elif error_post_request == "product":
+        bot.send_message(
+            message.chat.id,
+            f"Something went wrong while posting new product \"{product_name}\". Please, try again:",
+            reply_markup=force_reply
+        )
     bot.send_message(
         message.chat.id,
-        f"Something went wrong while creating category for \"{product_name}\". Please, try again:",
-        reply_markup=force_reply
-    )
-    bot.send_message(
-        message.chat.id,
-        reply_markup=price_name_buttons(state.PRODUCTS_ABSENT_IN_DATABASE, "ABSENT_IN_DATABASE")
+        reply_markup=price_name_buttons(context)
     )
 
 
