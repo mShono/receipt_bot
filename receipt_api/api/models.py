@@ -115,7 +115,7 @@ class Expense(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Expense {self.created_at}"
+        return f"{self.id} {self.user}"
 
 
 class ExpenseItem(models.Model):

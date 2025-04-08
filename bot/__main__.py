@@ -8,7 +8,7 @@ from telebot import TeleBot, types
 
 from . import messages
 from . import state
-from .bot_utils import process_price_edit, process_name_edit, category_creation, get_category_id, collecting_data_and_post_expense, collecting_data_to_get_products, collecting_data_and_post_item, collecting_data_and_post_user
+from .bot_utils import process_price_edit, process_name_edit, post_category_product, get_category_id, collecting_data_and_post_expense, collecting_data_to_get_products, collecting_data_and_post_item, collecting_data_and_post_user
 from .buttons import price_name_buttons
 from .django_interaction import post_data_info, get_data_info
 from .file_operations import file_saving
@@ -58,14 +58,22 @@ def wake_up(message):
         reply_markup=markup)
     logger.info("Invitation for registration sent")
 
+
 @bot.callback_query_handler(func=lambda call: call.data == "Register")
 def callback_register(call):
     message = call.message
-    post_user_status, _ = collecting_data_and_post_user(message)
+    post_user_status, user_info = collecting_data_and_post_user(message)
     if not post_user_status:
         bot.send_message(message.chat.id, messages.UNSUCCESSFUL_REGISTRATION)
         return
-    bot.send_message(message.chat.id, messages.SUCCESSFUL_REGISTRATION)
+
+    if type(user_info) is dict:
+        bot.send_message(message.chat.id, messages.ALREADY_REGISTERED)
+        logger.info("Sent an 'Already regestered' message")
+    else:
+        bot.send_message(message.chat.id, messages.SUCCESSFUL_REGISTRATION)
+        logger.info("Sent a 'Successful registration' message")
+
     markup = types.InlineKeyboardMarkup()
     upload_receipt_button = types.InlineKeyboardButton("Upload receipt", callback_data="Upload receipt")
     markup.add(upload_receipt_button)
@@ -127,7 +135,6 @@ def callback_nothing_after_present(call):
                 messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
             return
         collecting_data_and_post_item(call.message)
-        # Here I need a logic if there're no buttons absent_in_database
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("Nothing_to_edit_after_ABSENT_IN_DATABASE"))
@@ -196,7 +203,15 @@ def callback_category_creation(call):
         f"Please, enter a category for the product \"{product_name}\"",
         reply_markup=force_reply
     )
-    bot.register_next_step_handler(call.message, lambda message: category_creation(message, product_name))
+    bot.register_next_step_handler(call.message, lambda message: post_category_product(message, product_name))
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "Upload receipt")
+def callback_upload_receipt(call):
+    bot.send_message(
+            call.message.chat.id,
+            messages.UPLOAD_RECEIRT)
+    logger.info("Asked for receipt uploading")
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -207,12 +222,6 @@ def callback_inline(call):
         return
 
     context = state.UserContext[message.chat.id]
-
-    if call.data == "Upload receipt":
-        bot.send_message(
-            message.chat.id,
-            messages.UPLOAD_RECEIRT)
-        logger.info("Asked for receipt uploading")
 
     for list_position in context.products_present_in_database:
         pushed_button = f"{list_position['name']}"

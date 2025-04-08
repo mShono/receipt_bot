@@ -89,6 +89,7 @@ def process_price_edit(message, editted_list_position):
     new_price = message.text
     status, validated_price = price_validation(new_price)
     logger.info(f"price validation status =  {status}")
+
     if not status:
         logger.info("Invalid price entered.")
         bot.send_message(
@@ -96,6 +97,7 @@ def process_price_edit(message, editted_list_position):
         f"Can't set a {validated_price} price to \"{editted_list_position["name"]}\". "\
         "Please, enter a correct price with two digits after point",
         reply_markup=price_name_buttons(context))
+
     else:
         for list_position in buttons_list:
             if list_position == editted_list_position:
@@ -171,9 +173,10 @@ def collecting_data_to_get_products(filepath, context):
     return
 
 
-def category_creation(message, product_name):
+def post_category_product(message, product_name):
     context = state.UserContext[message.chat.id]
     logger.info(f"For the product \"{product_name}\" the user set the following category \"{message.text}\".")
+
     try:
         post_category_status, new_category_id = post_data_info("category", {"name": f"{message.text}"})
         if not post_category_status:
@@ -181,6 +184,7 @@ def category_creation(message, product_name):
             return
     except Exception as e:
         messages.send_error_message(message, product_name, context,"category")
+
     try:
         post_product_status, _ = post_data_info("product", {"name": f"{product_name}", "category": f"{new_category_id}"})
         if not post_product_status:
@@ -204,15 +208,20 @@ def get_category_id(category_name, context):
 
 
 def collecting_data_and_post_user(message):
-    user_info = {
-        "chat_id": message.chat.id,
-        "username": message.chat.username,
-        "first_name": message.chat.first_name,
-        "last_name": message.chat.last_name,
-    }
-    logger.info(f"Information has been collected, user_info = {user_info}")
-    post_user_status, user_info = post_data_info("users", user_info)
-    return post_user_status, user_info
+    get_user_status, user_info = get_data_info("users", message.chat.username)
+    if get_user_status:
+        logger.info(f"type_user_info = {type(user_info)}")
+        return get_user_status, user_info
+    else:
+        user_info = {
+            "chat_id": message.chat.id,
+            "username": message.chat.username,
+            "first_name": message.chat.first_name,
+            "last_name": message.chat.last_name,
+        }
+        logger.info(f"Information has been collected, user_info = {user_info}")
+        post_user_status, user_info = post_data_info("users", user_info)
+        return post_user_status, user_info
 
 
 def collecting_data_and_post_expense(message):
@@ -247,23 +256,29 @@ def collecting_data_and_post_expense(message):
     return True, expense_id
 
 
+def collecting_expense_item_data(context, item, product_info):
+    expense_id = context.expense_id
+    logger.info(f"product_info = {product_info}")
+    item["expense"] = expense_id
+    item["product"] = product_info["id"]
+    item["price"] = float_to_int(item["price"])
+    item.pop("name")
+    if item.get("id"):
+        logger.info(f"Item  \"{product_info["name"]}\" exists in database")
+        item.pop("id")
+    return item
+
+
+
 def collecting_data_and_post_item(message):
     context = state.UserContext[message.chat.id]
-    expense_id = context.expense_id
     statuses = []
     logger.info(f"context.new_expense = {context.new_expense}")
     while context.new_expense:
         item = context.new_expense.pop(0)
         status, product_info = get_data_info("product", item["name"])
         if status:
-            logger.info(f"product_info = {product_info}")
-            item["expense"] = expense_id
-            item["product"] = product_info["id"]
-            item["price"] = float_to_int(item["price"])
-            item.pop("name")
-            if item.get("id"):
-                logger.info(f"Item  \"{product_info["name"]}\" exists in database")
-                item.pop("id")
+            item = collecting_expense_item_data(context, item, product_info)
             post_item_status, _ = post_data_info("expense_item", item)
             statuses.append(post_item_status)
         else:
@@ -275,12 +290,10 @@ def collecting_data_and_post_item(message):
             "Please enter it's category.",
             reply_markup=category_buttons(item["name"], context))
             return
-            # break
     if False in statuses:
         bot.send_message(
             message.chat.id,
             messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
-        # return False
     else:
         bot.send_message(
             context.chat_id,
@@ -288,4 +301,3 @@ def collecting_data_and_post_item(message):
         _, expense_info = get_data_info("expense", context.expense_id)
         context.expense_id = None
         logger.info(f"expense info = {expense_info}")
-        # return True
