@@ -1,3 +1,4 @@
+import logging
 import os
 from dotenv import load_dotenv
 
@@ -5,6 +6,14 @@ from telebot import TeleBot, types
 
 from . import state
 from .buttons import price_name_buttons
+from .django_interaction import get_data_info
+
+load_dotenv()
+
+logging.basicConfig(level=logging.DEBUG)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 bot = TeleBot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
 
@@ -20,7 +29,8 @@ RECEIPT_INST_IS_DOC = "You've uploaded receipt photo as a document. Please, uplo
 SUCCESSFUL_RECEIPT_UPLOADING = "Your receipt uploaded was successful! ✅"
 UNSUCCESSFUL_RECEIPT_UPLOADING = "Unfortunately, we were unable to upload your receipt right now 😔"
 SUCCESSFUL_RECOGNITION = "The following products were recognised successfully 😌 Do you want to edit the price?"
-UNSUCCESSFUL_RECOGNITION = "The following products are missing from our database. 🤷‍♂️ Do you want to add them?"
+RECOGNIZED_PRODUCTS_MISSING_IN_DATABASE = "The following products are missing from our database. 🤷‍♂️ Do you want to add them?"
+UNSUCCESSFUL_RECOGNITION = "Unfortunately, we were unable to recognize any products in that receipt 😔"
 ASKING_IF_THE_PRICE_EDITION_IS_NEEDED = "Do you want to edit the other product price?"
 UPLOAD_EXPENCE = "Uploading expense to database"
 SUCCESSFUL_UPLOAD_EXPENCE = "Your expense was successfully uploaded to database! ✅"
@@ -39,3 +49,13 @@ def send_error_message(message, product_name):
         message.chat.id,
         reply_markup=price_name_buttons(state.PRODUCTS_ABSENT_IN_DATABASE, "ABSENT_IN_DATABASE")
     )
+
+
+def send_final_message(context):
+    if not context.new_expense:
+        bot.send_message(
+            context.user_id,
+            SUCCESSFUL_UPLOAD_EXPENCE)
+        _, expense_info = get_data_info("expense", context.expence_id)
+        context.expence_id = None
+        logger.info(f"expense info = {expense_info}")

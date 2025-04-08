@@ -43,24 +43,24 @@ def get_data_info(endpoint, data):
         raise e
 
 
-def check_existent_categories():
+def check_existent_categories(context):
     logger.info("Checking the categories existing in the database")
     try:
         response = requests.get(f"{DJANGO_API_URL}category/", headers=headers)
-        if response.status_code == 200:
-            logger.info(f"EXISTING_CATEGORIES_WITH_ID = {state.EXISTING_CATEGORIES_WITH_ID}")
-        else:
+        if response.status_code != 200:
             logger.info(f"Received an unpredictable response from Django database: {response.status_code}")
+            return None
     except Exception as e:
         logger.error(f"The request for database for existent categories failed: {e}")
         return None
-    state.EXISTING_CATEGORIES.clear()
-    state.EXISTING_CATEGORIES_WITH_ID.clear()
+    context.existing_categories.clear()
+    context.existing_categories_with_id.clear()
     try:
-        state.EXISTING_CATEGORIES_WITH_ID.extend(json.loads(response.text))
+        context.existing_categories_with_id.extend(json.loads(response.text))
         for category in json.loads(response.text):
-            state.EXISTING_CATEGORIES.append(category["name"])
-        logger.info(f"EXISTING_CATEGORIES = {state.EXISTING_CATEGORIES}")
+            context.existing_categories.append(category["name"])
+        logger.info(f"existing_categories = {context.existing_categories}")
+        logger.info(f"existing_categories_with_id = {context.existing_categories_with_id}")
     except Exception as e:
         logger.error(f"Converting response.text with existant categories to json failed: {e}")
         raise e
