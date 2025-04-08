@@ -215,7 +215,7 @@ def collecting_data_and_post_user(message):
     return post_user_status, user_info
 
 
-def collecting_data_and_post_expence(message):
+def collecting_data_and_post_expense(message):
     context = state.UserContext[message.chat.id]
     if not context.new_expense:
         get_user_info_status, user_info = get_data_info("users", message.chat.username)
@@ -240,16 +240,16 @@ def collecting_data_and_post_expence(message):
     except Exception as e:
         logger.error(f"Reading the json file response with user info failed: {e}")
         raise e
-    post_expense_status, expence_id = post_data_info("expense", expense_dict)
+    post_expense_status, expense_id = post_data_info("expense", expense_dict)
     if not post_expense_status:
         return False, None
-    context.expence_id = expence_id
-    return True, expence_id
+    context.expense_id = expense_id
+    return True, expense_id
 
 
 def collecting_data_and_post_item(message):
     context = state.UserContext[message.chat.id]
-    expence_id = context.expence_id
+    expense_id = context.expense_id
     statuses = []
     logger.info(f"context.new_expense = {context.new_expense}")
     while context.new_expense:
@@ -257,7 +257,7 @@ def collecting_data_and_post_item(message):
         status, product_info = get_data_info("product", item["name"])
         if status:
             logger.info(f"product_info = {product_info}")
-            item["expense"] = expence_id
+            item["expense"] = expense_id
             item["product"] = product_info["id"]
             item["price"] = float_to_int(item["price"])
             item.pop("name")
@@ -285,7 +285,7 @@ def collecting_data_and_post_item(message):
         bot.send_message(
             context.chat_id,
             messages.SUCCESSFUL_UPLOAD_EXPENCE)
-        _, expense_info = get_data_info("expense", context.expence_id)
-        context.expence_id = None
+        _, expense_info = get_data_info("expense", context.expense_id)
+        context.expense_id = None
         logger.info(f"expense info = {expense_info}")
         # return True

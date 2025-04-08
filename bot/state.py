@@ -11,7 +11,7 @@ class Context:
     stage = ""
     products_present_in_database = []
     products_absent_in_database = []
-    expence_id = None
+    expense_id = None
     new_expense = []
     existing_categories = []
     existing_categories_with_id = []

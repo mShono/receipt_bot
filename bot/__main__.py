@@ -8,7 +8,7 @@ from telebot import TeleBot, types
 
 from . import messages
 from . import state
-from .bot_utils import process_price_edit, process_name_edit, category_creation, get_category_id, collecting_data_and_post_expence, collecting_data_to_get_products, collecting_data_and_post_item, collecting_data_and_post_user
+from .bot_utils import process_price_edit, process_name_edit, category_creation, get_category_id, collecting_data_and_post_expense, collecting_data_to_get_products, collecting_data_and_post_item, collecting_data_and_post_user
 from .buttons import price_name_buttons
 from .django_interaction import post_data_info, get_data_info
 from .file_operations import file_saving
@@ -115,6 +115,18 @@ def callback_nothing_after_present(call):
             messages.RECOGNIZED_PRODUCTS_MISSING_IN_DATABASE,
             reply_markup=markup)
         logger.info("Sent the absent in database products and asked for edition")
+
+    else:
+        bot.send_message(
+            call.message.chat.id,
+            messages.UPLOAD_EXPENCE)
+        post_expense_status, _ = collecting_data_and_post_expense(call.message)
+        if not post_expense_status:
+            bot.send_message(
+                call.message.chat.id,
+                messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
+            return
+        collecting_data_and_post_item(call.message)
         # Here I need a logic if there're no buttons absent_in_database
 
 
@@ -123,8 +135,8 @@ def callback_nothing_after_absent(call):
     bot.send_message(
         call.message.chat.id,
         messages.UPLOAD_EXPENCE)
-    post_expence_status, _ = collecting_data_and_post_expence(call.message)
-    if not post_expence_status:
+    post_expense_status, _ = collecting_data_and_post_expense(call.message)
+    if not post_expense_status:
         bot.send_message(
             call.message.chat.id,
             messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
