@@ -106,24 +106,24 @@ def callback_price_edit(call):
         call.message.chat.id,
         messages.UPLOAD_EXPENCE)
     post_expence_status, expence_id = collecting_data_to_post_expence(call.message)
-    if post_expence_status:
-        post_item_status = collecting_data_to_post_item(expence_id)
-        if post_item_status:
-            bot.send_message(
-                call.message.chat.id,
-                messages.SUCCESSFUL_UPLOAD_EXPENCE)
-            _, expense_info = get_data_info("expense", expence_id)
-            logger.info(f"expense info = {expense_info}")
-        else:
-            bot.send_message(
-                call.message.chat.id,
-                messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
-    else:
+    if not post_expence_status:
         bot.send_message(
             call.message.chat.id,
             messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
+        return
 
+    post_item_status = collecting_data_to_post_item(expence_id)
+    if not post_item_status:
+        bot.send_message(
+            call.message.chat.id,
+            messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
+        return
 
+    bot.send_message(
+        call.message.chat.id,
+        messages.SUCCESSFUL_UPLOAD_EXPENCE)
+    _, expense_info = get_data_info("expense", expence_id)
+    logger.info(f"expense info = {expense_info}")
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("existing_cat"))
@@ -179,76 +179,77 @@ def callback_category_creation(call):
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     message = call.message
-    if call.message:
+    if not call.message:
+        return
 
-        if call.data == "Register":
-            user_info = {
-                "chat_id": message.chat.id,
-                "username": message.chat.username,
-                "first_name": message.chat.first_name,
-                "last_name": message.chat.last_name,
-            }
-            logger.info(f"Information has been collected, user_info = {user_info}")
-            response = requests.post(f"{DJANGO_API_URL}users/", json=user_info, headers=headers)
-            if response.status_code == 201:
-                logger.info(f"Registration successful, response.status_code = {response.status_code}")
-            else:
-                bot.send_message(message.chat.id, messages.UNSUCCESSFUL_REGISTRATION)
-                logger.info(f"Registratipon failed, response.text = {response.text}")
-                logger.error(f"response.status_code = {response.status_code}")
-                return
-            bot.send_message(message.chat.id, messages.SUCCESSFUL_REGISTRATION)
-            markup = types.InlineKeyboardMarkup()
-            upload_receipt_button = types.InlineKeyboardButton("Upload receipt", callback_data="Upload receipt")
-            markup.add(upload_receipt_button)
-            bot.send_message(
-                chat_id=message.chat.id,
-                text=messages.UPLOAD_RECEIRT_FIRST,
-                reply_markup=markup)
-            logger.info("Showed the 'Upload receipt' button")
+    if call.data == "Register":
+        user_info = {
+            "chat_id": message.chat.id,
+            "username": message.chat.username,
+            "first_name": message.chat.first_name,
+            "last_name": message.chat.last_name,
+        }
+        logger.info(f"Information has been collected, user_info = {user_info}")
+        response = requests.post(f"{DJANGO_API_URL}users/", json=user_info, headers=headers)
+        if response.status_code == 201:
+            logger.info(f"Registration successful, response.status_code = {response.status_code}")
+        else:
+            bot.send_message(message.chat.id, messages.UNSUCCESSFUL_REGISTRATION)
+            logger.info(f"Registratipon failed, response.text = {response.text}")
+            logger.error(f"response.status_code = {response.status_code}")
+            return
+        bot.send_message(message.chat.id, messages.SUCCESSFUL_REGISTRATION)
+        markup = types.InlineKeyboardMarkup()
+        upload_receipt_button = types.InlineKeyboardButton("Upload receipt", callback_data="Upload receipt")
+        markup.add(upload_receipt_button)
+        bot.send_message(
+            chat_id=message.chat.id,
+            text=messages.UPLOAD_RECEIRT_FIRST,
+            reply_markup=markup)
+        logger.info("Showed the 'Upload receipt' button")
 
-        elif call.data == "Upload receipt":
+    elif call.data == "Upload receipt":
+        bot.send_message(
+            message.chat.id,
+            messages.UPLOAD_RECEIRT)
+        logger.info("Asked for receipt uploading")
+
+    for list_position in state.PRODUCTS_PRESENT_IN_DATABASE:
+        pushed_button = f"{list_position['name']}: {list_position['price']} €"
+        if call.data == pushed_button:
+            logger.info(f"The user wants to edit the price of the following product {pushed_button}")
+            force_reply = types.ForceReply(selective=True)
             bot.send_message(
                 message.chat.id,
-                messages.UPLOAD_RECEIRT)
-            logger.info("Asked for receipt uploading")
+                f"Current price for \"{list_position['name']}\" is {list_position['price']} €. "\
+                "Please enter the correct price:",
+                reply_markup=force_reply
+            )
+            bot.register_next_step_handler(call.message, lambda message: process_price_edit(
+                message,
+                list_position,
+                state.PRODUCTS_PRESENT_IN_DATABASE,
+                "PRESENT_IN_DATABASE")
+            )
+            return
 
-        for list_position in state.PRODUCTS_PRESENT_IN_DATABASE:
-            pushed_button = f"{list_position['name']}: {list_position['price']} €"
-            if call.data == pushed_button:
-                logger.info(f"The user wants to edit the price of the following product {pushed_button}")
-                force_reply = types.ForceReply(selective=True)
-                bot.send_message(
-                    message.chat.id,
-                    f"Current price for \"{list_position['name']}\" is {list_position['price']} €. "\
-                    "Please enter the correct price:",
-                    reply_markup=force_reply
-                )
-                bot.register_next_step_handler(call.message, lambda message: process_price_edit(
-                    message,
-                    list_position,
-                    state.PRODUCTS_PRESENT_IN_DATABASE,
-                    "PRESENT_IN_DATABASE")
-                )
-                return
-
-        for list_position in state.PRODUCTS_ABSENT_IN_DATABASE:
-            pushed_button = f"{list_position['name']}: {list_position['price']} €"
-            if call.data == pushed_button:
-                logger.info(f"The user wants to edit {pushed_button}")
-                force_reply = types.ForceReply(selective=True)
-                bot.send_message(
-                    message.chat.id,
-                    f"Current name for the product is \"{list_position['name']}\". "\
-                    "Please enter the correct name:",
-                    reply_markup=force_reply
-                )
-                bot.register_next_step_handler(call.message, lambda message: process_name_edit(
-                    message,
-                    list_position,
-                    state.PRODUCTS_ABSENT_IN_DATABASE)
-                )
-                return
+    for list_position in state.PRODUCTS_ABSENT_IN_DATABASE:
+        pushed_button = f"{list_position['name']}: {list_position['price']} €"
+        if call.data == pushed_button:
+            logger.info(f"The user wants to edit {pushed_button}")
+            force_reply = types.ForceReply(selective=True)
+            bot.send_message(
+                message.chat.id,
+                f"Current name for the product is \"{list_position['name']}\". "\
+                "Please enter the correct name:",
+                reply_markup=force_reply
+            )
+            bot.register_next_step_handler(call.message, lambda message: process_name_edit(
+                message,
+                list_position,
+                state.PRODUCTS_ABSENT_IN_DATABASE)
+            )
+            return
 
 
 @bot.message_handler(content_types=['photo', 'document'])

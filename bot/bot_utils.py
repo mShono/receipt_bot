@@ -198,6 +198,7 @@ def collecting_user_info(username):
 
 
 def collecting_data_to_post_expence(message):
+    state.NEW_EXPENSE.clear()
     state.NEW_EXPENSE.extend(state.PRODUCTS_PRESENT_IN_DATABASE)
     state.NEW_EXPENSE.extend(state.PRODUCTS_ABSENT_IN_DATABASE)
     logger.info(f"NEW_EXPENSE = {state.NEW_EXPENSE}")
@@ -225,9 +226,13 @@ def collecting_data_to_post_item(expence_id):
         item["product"] = product_info["id"]
         item["price"] = float_to_int(item["price"])
         item.pop("name")
+        if item.get("id"):
+            logger.info(f"Item  \"{product_info["name"]}\" had id")
+            item.pop("id")
         post_item_status, _ = post_data_info("expense_item", item)
         statuses.append(post_item_status)
     if False in statuses:
+        state.NEW_EXPENSE.clear()
         return False
     else:
         state.NEW_EXPENSE.clear()

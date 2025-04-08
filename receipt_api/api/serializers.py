@@ -43,6 +43,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class ExpenseItemSerializer(serializers.ModelSerializer):
+    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
 
     class Meta:
         model = ExpenseItem
@@ -53,9 +54,13 @@ class ExpenseItemSerializer(serializers.ModelSerializer):
             "price",
         )
 
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation["product"] = str(instance.product) if instance.product else None
+        return representation
+
 
 class ExpenseSerializer(serializers.ModelSerializer):
-    # user = serializers.StringRelatedField(read_only=True)
     items = ExpenseItemSerializer(many=True, read_only=True)
 
     class Meta:
@@ -67,3 +72,9 @@ class ExpenseSerializer(serializers.ModelSerializer):
             "currency",
             "created_at",
         )
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation["user"] = str(instance.user)
+        representation["currency"] = str(instance.currency)
+        return representation
