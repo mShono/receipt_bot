@@ -10,8 +10,9 @@ from . import messages
 from . import state
 from .bot_utils import process_price_edit, process_name_edit, post_category_product, get_category_id, collecting_data_and_post_expense, collecting_data_to_get_products, collecting_data_and_post_item, collecting_data_and_post_user
 from .buttons import price_name_buttons
-from .django_interaction import post_data_info, get_data_info
+from .django_interaction import post_data_info
 from .file_operations import file_saving
+from .messages import send_reply_markup_message
 from .receipt_recognition import recognition_ocr_mini, recognition_turbo
 
 
@@ -77,10 +78,10 @@ def callback_register(call):
     markup = types.InlineKeyboardMarkup()
     upload_receipt_button = types.InlineKeyboardButton("Upload receipt", callback_data="Upload receipt")
     markup.add(upload_receipt_button)
-    bot.send_message(
-        chat_id=message.chat.id,
-        text=messages.UPLOAD_RECEIRT_FIRST,
-        reply_markup=markup)
+    send_reply_markup_message(
+        message.chat,
+        messages.UPLOAD_RECEIRT_FIRST,
+        markup)
     logger.info("Showed the 'Upload receipt' button")
 
 
@@ -100,11 +101,12 @@ def callback_price_edit(call):
 
     logger.info(f"The user wants to edit the price of the following product: {editted_list_position}")
     force_reply = types.ForceReply(selective=True)
-    bot.send_message(
-        call.message.chat.id,
-        f"Current price for \"{editted_list_position["name"]}\" is {editted_list_position["price"]} € "\
-        "Please enter the correct price:",
-        reply_markup=force_reply
+    send_reply_markup_message(
+        call.message.chat,
+        messages.CORRECTING_PRICE,
+        force_reply,
+        name = editted_list_position["name"],
+        price = editted_list_position["price"]
     )
     bot.register_next_step_handler(
         call.message,
@@ -118,10 +120,11 @@ def callback_nothing_after_present(call):
     logger.info(f"ABSENT_IN_DATABASE = {context.products_absent_in_database}")
     if context.products_absent_in_database:
         markup = price_name_buttons(context)
-        bot.send_message(
-            call.message.chat.id,
+        send_reply_markup_message(
+            call.message.chat,
             messages.RECOGNIZED_PRODUCTS_MISSING_IN_DATABASE,
-            reply_markup=markup)
+            markup,
+        )
         logger.info("Sent the absent in database products and asked for edition")
 
     else:
@@ -173,16 +176,20 @@ def callback_existing_category(call):
     status, _ = post_data_info("product", {"name": f"{product_name}", "category": category_id})
     if status:
         if context.stage == "new_expense":
-            bot.send_message(
-            call.message.chat.id,
-            f"The category \"{category_name}\" successfully set for the product {product_name}.")
+            send_reply_markup_message(
+                call.message.chat,
+                messages.SUCCESSFUL_CATEGORY_CORRECT,
+                category_name = category_name,
+                product_name = product_name
+            )
             collecting_data_and_post_item(call.message)
         elif "absent" in context.stage:
-            bot.send_message(
-                call.message.chat.id,
-                f"The category \"{category_name}\" successfully set for the product {product_name}. "\
-                "Please correct the other products.",
-                reply_markup=price_name_buttons(context)
+            send_reply_markup_message(
+                call.message.chat,
+                messages.SUCCESSFUL_CATEGORY_CORRECT,
+                price_name_buttons(context),
+                category_name = category_name,
+                product_name = product_name
             )
 
 
@@ -197,11 +204,11 @@ def callback_category_creation(call):
         logger.error(f"Error parsing callback_data: {call.data} - {e}")
         return
 
-    force_reply = types.ForceReply(selective=True)
-    bot.send_message(
-        call.message.chat.id,
-        f"Please, enter a category for the product \"{product_name}\"",
-        reply_markup=force_reply
+    send_reply_markup_message(
+        call.message.chat,
+        messages.SUGGESTION_TO_ENTER_PRODUCT,
+        types.ForceReply(selective=True),
+        product_name = product_name
     )
     bot.register_next_step_handler(call.message, lambda message: post_category_product(message, product_name))
 
@@ -227,12 +234,12 @@ def callback_inline(call):
         pushed_button = f"{list_position['name']}"
         if call.data == pushed_button:
             logger.info(f"The user wants to edit the price of the following product {pushed_button}")
-            force_reply = types.ForceReply(selective=True)
-            bot.send_message(
-                message.chat.id,
-                f"Current price for \"{list_position['name']}\" is {list_position['price']} €. "\
-                "Please enter the correct price:",
-                reply_markup=force_reply
+            send_reply_markup_message(
+                call.message.chat,
+                messages.CORRECTING_PRICE,
+                types.ForceReply(selective=True),
+                name = list_position['name'],
+                price = list_position['price']
             )
             bot.register_next_step_handler(call.message, lambda message: process_price_edit(
                 message,
@@ -244,12 +251,11 @@ def callback_inline(call):
         pushed_button = f"{list_position['name']}"
         if call.data == pushed_button:
             logger.info(f"The user wants to edit {pushed_button}")
-            force_reply = types.ForceReply(selective=True)
-            bot.send_message(
-                message.chat.id,
-                f"Current name for the product is \"{list_position['name']}\". "\
-                "Please enter the correct name:",
-                reply_markup=force_reply
+            send_reply_markup_message(
+                call.message.chat,
+                messages.CORRECTING_NAME,
+                types.ForceReply(selective=True),
+                name = list_position['name'],
             )
             bot.register_next_step_handler(call.message, lambda message: process_name_edit(
                 message,

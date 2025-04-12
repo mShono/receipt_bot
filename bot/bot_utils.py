@@ -12,6 +12,7 @@ from .buttons import price_name_buttons, category_buttons
 from .conversions import float_to_int
 from .django_interaction import get_data_info, check_existent_categories, post_data_info
 from .file_operations import file_opening
+from .messages import send_reply_markup_message
 
 load_dotenv()
 
@@ -92,11 +93,13 @@ def process_price_edit(message, editted_list_position):
 
     if not status:
         logger.info("Invalid price entered.")
-        bot.send_message(
-        message.chat.id,
-        f"Can't set a {validated_price} price to \"{editted_list_position["name"]}\". "\
-        "Please, enter a correct price with two digits after point",
-        reply_markup=price_name_buttons(context))
+        send_reply_markup_message(
+            message.chat,
+            messages.WRONG_PRICE,
+            price_name_buttons(context),
+            price = validated_price,
+            product = editted_list_position["name"]
+        )
 
     else:
         for list_position in buttons_list:
@@ -104,11 +107,13 @@ def process_price_edit(message, editted_list_position):
                 list_position["price"] = float_to_int(validated_price)
         logger.info(f"Updated {list_position["name"]} price to {list_position["price"]}")
         logger.info(f"buttons_list = {buttons_list}")
-        bot.send_message(
-            message.chat.id,
-            f"Price for \"{editted_list_position["name"]}\" updated to {validated_price}. "\
-            "Do you want to correct something else?",
-            reply_markup=price_name_buttons(context))
+        send_reply_markup_message(
+            message.chat,
+            messages.SUCCESSFUL_PRICE_UPDATE,
+            price_name_buttons(context),
+            price = validated_price,
+            product = editted_list_position["name"]
+        )
 
 
 def process_name_edit(message, editted_list_position):
@@ -118,6 +123,7 @@ def process_name_edit(message, editted_list_position):
         buttons_list = context.products_present_in_database
     elif "absent" in stage:
         buttons_list = context.products_absent_in_database
+
     logger.info(f"For \"{editted_list_position}\" the user set the following name \"{message.text}\".")
     old_name = editted_list_position["name"]
     for list_position in buttons_list:
@@ -125,19 +131,24 @@ def process_name_edit(message, editted_list_position):
             list_position["name"] = message.text
     logger.info(f"Updated {old_name} to {editted_list_position["name"]}")
     status, _ = get_data_info("product", message.text)
+
     if not status:
         check_existent_categories(context)
-        bot.send_message(
-            message.chat.id,
-            f"The product \"{message.text}\" is not in our database. "\
-            "Please enter it's category.",
-            reply_markup=category_buttons(editted_list_position["name"], context))
+        send_reply_markup_message(
+            message.chat,
+            messages.PPODUCT_MISSING_IN_DATABASE,
+            category_buttons(editted_list_position["name"], context),
+            name = message.text,
+        )
+
     else:
-        bot.send_message(
-            message.chat.id,
-            f"Updated \"{old_name}\" to \"{message.text}\". "\
-            "Please correct the other products.",
-            reply_markup=price_name_buttons(context))
+        send_reply_markup_message(
+            message.chat,
+            messages.SUCCESSFUL_NAME_UPDATE,
+            price_name_buttons(context),
+            old_name = old_name,
+            new_name = message.text
+        )
 
     # price edition will be te future feature
     # logger.info(f"buttons_list = {buttons_list}")
@@ -183,20 +194,32 @@ def post_category_product(message, product_name):
             messages.send_error_message(message, product_name, context, "category")
             return
     except Exception as e:
+        logger.error(f"Exception = {e}")
         messages.send_error_message(message, product_name, context,"category")
 
     try:
         post_product_status, _ = post_data_info("product", {"name": f"{product_name}", "category": f"{new_category_id}"})
+        logger.info(f"post_product_status = {post_product_status}")
         if not post_product_status:
             messages.send_error_message(message, product_name, context, "product")
             return
-        bot.send_message(
-                message.chat.id,
-                f"The category \"{message.text}\" successfully set for the product \"{product_name}\". "\
-                "Please correct the other products.",
-                reply_markup=price_name_buttons(context))
     except Exception as e:
+        logger.info(f"Exception = {e}")
         messages.send_error_message(message, product_name, context, "product")
+
+    if context.stage == "new_expense":
+        send_reply_markup_message(
+            message.chat,
+            messages.SUCCESSFUL_CATEGORY_CORRECT,
+            category_name = message.text,
+        )
+        collecting_data_and_post_item(message)
+    elif "absent" in context.stage:
+        send_reply_markup_message(
+            message.chat,
+            messages.SUCCESSFUL_CATEGORY_CORRECT,
+            category_name = message.text,
+        )
 
 
 def get_category_id(category_name, context):
@@ -284,11 +307,12 @@ def collecting_data_and_post_item(message):
         else:
             context.new_expense.insert(0, item)
             check_existent_categories(context)
-            bot.send_message(
-            message.chat.id,
-            f"The product \"{item["name"]}\" is not in our database. "\
-            "Please enter it's category.",
-            reply_markup=category_buttons(item["name"], context))
+            messages.send_reply_markup_message(
+                message.chat,
+                messages.PPODUCT_MISSING_IN_DATABASE,
+                category_buttons(item["name"], context),
+                name = item["name"]
+            )
             return
     if False in statuses:
         bot.send_message(
