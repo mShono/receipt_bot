@@ -81,6 +81,7 @@ class User(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
+        related_name="user",
         verbose_name="Default currency",
     )
 
@@ -95,29 +96,18 @@ class Expense(models.Model):
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
+        related_name="expence",
         verbose_name="User",
     )
-    category = models.ForeignKey(
-        Category,
-        on_delete=models.CASCADE,
-        verbose_name="Category",
-    )
-    product = models.ForeignKey(
-        Product,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        verbose_name="Product",
-    )
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.ForeignKey(
         Currency,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
+        related_name="expence",
         verbose_name="Currency",
     )
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
         if self.currency is None and self.user.default_currency is not None:
@@ -125,4 +115,26 @@ class Expense(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f'Expense {self.created_at}'
+        return f"{self.id} {self.user}"
+
+
+class ExpenseItem(models.Model):
+    expense = models.ForeignKey(
+        Expense,
+        on_delete=models.CASCADE,
+        related_name="items",
+        verbose_name="Expense"
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="items",
+        verbose_name="Product"
+    )
+    price = models.PositiveIntegerField(
+        "Price",)
+
+    def __str__(self):
+        return f"{self.product} for {self.price}"

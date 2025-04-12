@@ -7,11 +7,14 @@ success = load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPEN_AI_TOKEN"))
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 def image_recognition_turbo(base64_image):
 
     try:
-        logging.info(f"Receipt recognition launched")
+        logger.info(f"Receipt recognition launched")
         completion = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -41,7 +44,7 @@ def image_recognition_turbo(base64_image):
         )
 
     except Exception as e:
-        logging.error(f"Product identifing with OpenAI failed: {e}")
+        logger.error(f"Product identifing with OpenAI failed: {e}")
         return None
 
     return completion.choices[0].message.content
@@ -50,7 +53,7 @@ def image_recognition_turbo(base64_image):
 def product_recognition_turbo(recognized_image):
 
     try:
-        logging.info(f"Product identifing launched")
+        logger.info(f"Product identifing launched")
         completion = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -86,7 +89,7 @@ def product_recognition_turbo(recognized_image):
         )
 
     except Exception as e:
-        logging.error(f"Product identifing with OpenAI failed: {e}")
+        logger.error(f"Product identifing with OpenAI failed: {e}")
         return None
 
     return completion.choices[0].message.content

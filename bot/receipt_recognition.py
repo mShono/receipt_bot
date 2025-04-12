@@ -2,7 +2,7 @@ import base64
 import logging
 import os
 
-from .file_saving import file_saving
+from .file_operations import file_saving
 from .receipt_open_ai_mini import open_ai_mini
 from .receipt_open_ai_turbo import image_recognition_turbo, product_recognition_turbo
 from tesserocr import PyTessBaseAPI, PSM
@@ -12,17 +12,20 @@ from PIL import Image
 TESSDATA_PREFIX = "/usr/share/tesseract-ocr/5/tessdata/"
 UPLOAD_FOLDER = "uploaded_receipts"
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 def receipt_ocr(image):
     try:
-        logging.info(f"Receipt recognition launched")
+        logger.info(f"Receipt recognition launched")
         with PyTessBaseAPI(path = TESSDATA_PREFIX, lang='fin') as api:
             # psm = PSM.SINGLE_COLUMN
             api.SetImage(image)
             text = api.GetUTF8Text()
-        logging.info(f"Receipt was recognized successfully")
+        logger.info(f"Receipt was recognized successfully")
     except Exception as e:
-        logging.error(f"Recognition error: {e}")
+        logger.error(f"Recognition error: {e}")
         return None
 
     return text
@@ -31,10 +34,10 @@ def receipt_ocr(image):
 def recognition_ocr_mini(file_name):
     filepath = os.path.join(UPLOAD_FOLDER, f"{file_name}.jpg")
     try:
-        logging.info(f"Opening image from: {filepath}")
+        logger.info(f"Opening image from: {filepath}")
         image = Image.open(filepath)
     except Exception as e:
-        logging.error(f"Image opening error: {e}")
+        logger.error(f"Image opening error: {e}")
         return None
     text = receipt_ocr(image)
     file_saving(UPLOAD_FOLDER, file_name, text, "w", "ocr")
@@ -44,28 +47,28 @@ def recognition_ocr_mini(file_name):
 
 
 def check_openai_response(text):
-    logging.info("Сhecking if AI has recognized the image")
+    logger.info("Сhecking if AI has recognized the image")
     lines = text.splitlines()
 
     try:
         if lines and lines[1]:
             lines = lines[1:]
-            logging.info("Image recognition was successful")
+            logger.info("Image recognition was successful")
             return "\n".join(lines)
 
     except Exception as e:
-        logging.error(f"Text splitting for lines error: {e}")
+        logger.error(f"Text splitting for lines error: {e}")
         return None
 
 
 def clean_openai_response(text):
-    logging.info("Geting rid of the markers in AI response")
+    logger.info("Geting rid of the markers in AI response")
     lines = text.splitlines()
 
     if lines and lines[0].strip() == "```json":
         lines = lines[1:]
     else:
-        logging.info("There were no markers in AI response")
+        logger.info("There were no markers in AI response")
         return None
 
     if lines and lines[-1].strip() == "```":
@@ -76,20 +79,20 @@ def clean_openai_response(text):
 def recognition_turbo(file_name):
     filepath = os.path.join(UPLOAD_FOLDER, f"{file_name}.jpg")
     try:
-        logging.info(f"Opening image from: {filepath}")
+        logger.info(f"Opening image from: {filepath}")
         with open(filepath, "rb") as image_file:
             base64_image = base64.b64encode(image_file.read()).decode("utf-8")
     except Exception as e:
-        logging.error(f"Image opening error: {e}")
+        logger.error(f"Image opening error: {e}")
         return None
     recognized_image = image_recognition_turbo(base64_image)
     checked_recognized_image = check_openai_response(recognized_image)
     if checked_recognized_image == None:
-        logging.info(f"Ai wasn't able to recognize the image, response: {recognized_image}")
+        logger.info(f"Ai wasn't able to recognize the image, response: {recognized_image}")
         file_saving(UPLOAD_FOLDER, file_name, recognized_image, "w", "image_ai")
     else:
         file_saving(UPLOAD_FOLDER, file_name, checked_recognized_image, "w", "image_ai")
-        logging.info("Making the second request to AI to find the products")
+        logger.info("Making the second request to AI to find the products")
         json_text = product_recognition_turbo(checked_recognized_image)
         cleaned_text = clean_openai_response(json_text)
         _, filepath = file_saving(UPLOAD_FOLDER, file_name, cleaned_text, "w", "product_ai")

@@ -6,9 +6,12 @@ from openai import OpenAI
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPEN_AI_TOKEN"))
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 def open_ai_mini(text):
     try:
-        logging.info(f"Product identifing launched")
+        logger.info(f"Product identifing launched")
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -34,7 +37,7 @@ def open_ai_mini(text):
             ]
         )
     except Exception as e:
-        logging.error(f"Product identifing with OpenAI failed: {e}")
+        logger.error(f"Product identifing with OpenAI failed: {e}")
         return None
 
     return completion.choices[0].message.content

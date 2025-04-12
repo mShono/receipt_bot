@@ -5,10 +5,14 @@ from dotenv import load_dotenv
 import requests
 
 from telebot import TeleBot, types
-from . import messages
 
-from .django_interaction import check_products_existence
-from .file_saving import file_saving
+from . import messages
+from . import state
+from .bot_utils import process_price_edit, process_name_edit, post_category_product, get_category_id, collecting_data_and_post_expense, collecting_data_to_get_products, collecting_data_and_post_item, collecting_data_and_post_user
+from .buttons import price_name_buttons
+from .django_interaction import post_data_info
+from .file_operations import file_saving
+from .messages import send_reply_markup_message
 from .receipt_recognition import recognition_ocr_mini, recognition_turbo
 
 
@@ -26,7 +30,6 @@ headers = {
 }
 
 UPLOAD_FOLDER = "uploaded_receipts"
-PRESENT_IN_DATABASE = []
 
 user_states = {}
 user_info = {}
@@ -57,168 +60,218 @@ def wake_up(message):
     logger.info("Invitation for registration sent")
 
 
+@bot.callback_query_handler(func=lambda call: call.data == "Register")
+def callback_register(call):
+    message = call.message
+    post_user_status, user_info = collecting_data_and_post_user(message)
+    if not post_user_status:
+        bot.send_message(message.chat.id, messages.UNSUCCESSFUL_REGISTRATION)
+        return
+
+    if type(user_info) is dict:
+        bot.send_message(message.chat.id, messages.ALREADY_REGISTERED)
+        logger.info("Sent an 'Already regestered' message")
+    else:
+        bot.send_message(message.chat.id, messages.SUCCESSFUL_REGISTRATION)
+        logger.info("Sent a 'Successful registration' message")
+
+    markup = types.InlineKeyboardMarkup()
+    upload_receipt_button = types.InlineKeyboardButton("Upload receipt", callback_data="Upload receipt")
+    markup.add(upload_receipt_button)
+    send_reply_markup_message(
+        message.chat,
+        messages.UPLOAD_RECEIRT_FIRST,
+        markup)
+    logger.info("Showed the 'Upload receipt' button")
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("price_edit_yes:"))
+def callback_price_edit(call):
+    try:
+        _, product_name = call.data.split(":", 1)
+    except Exception as e:
+        logger.error(f"Error parsing callback_data: {call.data} - {e}")
+        return
+
+    editted_list_position = None
+    for list_position in state.PRODUCTS_ABSENT_IN_DATABASE:
+        if list_position["name"] == product_name:
+            editted_list_position = list_position
+            break
+
+    logger.info(f"The user wants to edit the price of the following product: {editted_list_position}")
+    force_reply = types.ForceReply(selective=True)
+    send_reply_markup_message(
+        call.message.chat,
+        messages.CORRECTING_PRICE,
+        force_reply,
+        name = editted_list_position["name"],
+        price = editted_list_position["price"]
+    )
+    bot.register_next_step_handler(
+        call.message,
+        lambda message: process_price_edit(message, editted_list_position, state.PRODUCTS_ABSENT_IN_DATABASE))
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("Nothing_to_edit_after_PRESENT_IN_DATABASE"))
+def callback_nothing_after_present(call):
+    context = state.UserContext[call.message.chat.id]
+    context.stage = "products_absent_in_database"
+    logger.info(f"ABSENT_IN_DATABASE = {context.products_absent_in_database}")
+    if context.products_absent_in_database:
+        markup = price_name_buttons(context)
+        send_reply_markup_message(
+            call.message.chat,
+            messages.RECOGNIZED_PRODUCTS_MISSING_IN_DATABASE,
+            markup,
+        )
+        logger.info("Sent the absent in database products and asked for edition")
+
+    else:
+        bot.send_message(
+            call.message.chat.id,
+            messages.UPLOAD_EXPENCE)
+        post_expense_status, _ = collecting_data_and_post_expense(call.message)
+        if not post_expense_status:
+            bot.send_message(
+                call.message.chat.id,
+                messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
+            return
+        collecting_data_and_post_item(call.message)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("Nothing_to_edit_after_ABSENT_IN_DATABASE"))
+def callback_nothing_after_absent(call):
+    bot.send_message(
+        call.message.chat.id,
+        messages.UPLOAD_EXPENCE)
+    post_expense_status, _ = collecting_data_and_post_expense(call.message)
+    if not post_expense_status:
+        bot.send_message(
+            call.message.chat.id,
+            messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
+        return
+
+    collecting_data_and_post_item(call.message)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("exist_cat"))
+# here we should also ask about the price!
+def callback_existing_category(call):
+    context = state.UserContext[call.message.chat.id]
+    try:
+        category_info, product_info = call.data.split(",", 1)
+        _, category_name = category_info.split(":", 1)
+        _, product_name = product_info.split(":", 1)
+        logger.info("Successful parsing callback_data")
+        logger.info(f"category_name = {category_name}")
+        logger.info(f"product_name = {product_name}")
+    except Exception as e:
+        logger.error(f"Error parsing callback_data: {call.data} - {e}")
+        return
+
+    logger.info(f"The user assigns the category \"{category_name}\" for the following product: \"{product_name}\"")
+    category_id = get_category_id(category_name, context)
+    logger.debug(f"posting data info from exist_cat")
+    status, _ = post_data_info("product", {"name": f"{product_name}", "category": category_id})
+    if status:
+        if context.stage == "new_expense":
+            send_reply_markup_message(
+                call.message.chat,
+                messages.SUCCESSFUL_CATEGORY_CORRECT,
+                category_name = category_name,
+                product_name = product_name
+            )
+            collecting_data_and_post_item(call.message)
+        elif "absent" in context.stage:
+            send_reply_markup_message(
+                call.message.chat,
+                messages.SUCCESSFUL_CATEGORY_CORRECT,
+                price_name_buttons(context),
+                category_name = category_name,
+                product_name = product_name
+            )
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("categ_cr"))
+def callback_category_creation(call):
+    try:
+        _, product_info = call.data.split(",", 1)
+        _, product_name = product_info.split(":", 1)
+        logger.info("Successful parsing callback_data")
+        logger.info(f"product_name = {product_name}")
+    except Exception as e:
+        logger.error(f"Error parsing callback_data: {call.data} - {e}")
+        return
+
+    send_reply_markup_message(
+        call.message.chat,
+        messages.SUGGESTION_TO_ENTER_PRODUCT,
+        types.ForceReply(selective=True),
+        product_name = product_name
+    )
+    bot.register_next_step_handler(call.message, lambda message: post_category_product(message, product_name))
+
+
+@bot.callback_query_handler(func=lambda call: call.data == "Upload receipt")
+def callback_upload_receipt(call):
+    bot.send_message(
+            call.message.chat.id,
+            messages.UPLOAD_RECEIRT)
+    logger.info("Asked for receipt uploading")
+
+
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
-    chat = call.message.chat
-    if call.message:
 
-        if call.data == "Register":
-            user_info = {
-                "chat_id": chat.id,
-                "username": chat.username,
-                "first_name": chat.first_name,
-                "last_name": chat.last_name,
-            }
-            logger.info(f"Information has been collected, user_info = {user_info}")
-            response = requests.post(f"{DJANGO_API_URL}users/", json=user_info, headers=headers)
-            if response.status_code == 201:
-                logger.info(f"Registration successful, response.status_code = {response.status_code}")
-            else:
-                bot.send_message(chat.id, messages.UNSUCCESSFUL_REGISTRATION)
-                logger.info(f"Registratipon failed, response.text = {response.text}")
-                logger.error(f"response.status_code = {response.status_code}")
-                return
-            bot.send_message(chat.id, messages.SUCCESSFUL_REGISTRATION)
-            markup = types.InlineKeyboardMarkup()
-            upload_receipt_button = types.InlineKeyboardButton("Upload receipt", callback_data="Upload receipt")
-            markup.add(upload_receipt_button)
-            bot.send_message(
-                chat_id=chat.id,
-                text=messages.UPLOAD_RECEIRT_FIRST,
-                reply_markup=markup)
-            logger.info("Showed the 'Upload receipt' button")
+    message = call.message
+    if not call.message:
+        return
 
-        elif call.data == "Upload receipt":
-            bot.send_message(
-                chat.id,
-                messages.UPLOAD_RECEIRT)
-            logger.info("Asked for receipt uploading")
+    context = state.UserContext[message.chat.id]
 
-        elif call.data == "Nothing to edit":
-            bot.send_message(
-                chat.id,
-                messages.UPLOAD_RECEIRT)
-            logger.info("Asked for receipt uploading")
-
-        for list_position in PRESENT_IN_DATABASE:
-            pushed_button = f"{list_position['name']}: {list_position['price']} €"
-            if call.data == pushed_button:
-                logger.info(f"The user wants to edit {pushed_button}")
-                force_reply = types.ForceReply(selective=True)
-                bot.send_message(
-                    chat.id,
-                    f"Current price for \"{list_position['name']}\" is {list_position['price']} €. "\
-                    "Please enter the correct price:",
-                    reply_markup=force_reply
-                )
-                bot.register_next_step_handler(call.message, lambda message: process_price_edit(message, list_position))
-                return
-
-
-def price_validation(price):
-    try:
-        validated_price = int(price)
-        if validated_price <= 0:
-            logger.info(f"price = {int(price)} which is less or equal to 0")
-            return False, price
-        else:
-            logger.info(f"The price \"{price}\" could be converted to int and isn't less or equal to 0")
-            return True, validated_price
-    except Exception as e:
-        logger.error(f"The price \"{price}\" couldn't be converted to int")
-    try:
-        if "." in price:
-            try:
-                logger.info(f"Trying splitting \"{price}\" to floor and fractional part")
-                floor_part, fractional_part = price.split(".")
-                int_floor_part = int(floor_part)
-            except Exception as e:
-                logging.error(f"Splitting the price that user entered \"{price}\" with a '.' failed: {e}")
-                return False, price
-        elif "," in price:
-            try:
-                logger.info(f"Trying splitting \"{price}\" to floor and fractional part")
-                floor_part, fractional_part = price.split(",")
-                int_floor_part = int(floor_part)
-                price = "".join([floor_part, ".", fractional_part])
-            except Exception as e:
-                logging.error(f"Splitting the price that user entered \"{price}\" with a ',' failed: {e}")
-                return False, price
-        else:
-            logging.info(f"Turning the price that user entered {price} into a float failed")
-            return False, price
-    except Exception as e:
-        logger.error(f"The price \"{price}\" couldn't be splited neighter with '.', nor with ','")
-        return False, price
-    if (len(fractional_part) > 2) or (int_floor_part < 0):
-        logger.info(f"len(fractional_part) = {len(fractional_part)} which is more then 2, "\
-                    f"or int(floor_part) = {int(floor_part)} which is less then 0")
-        return False, price
-    else:
-        try:
-            validated_price = float(price)
-        except Exception as e:
-            logging.error(f"Turning the price that user entered {price} into a float failed: {e}")
-            return False, price
-        logger.info(f"validated_price = {validated_price}")
-        return True, validated_price
-
-
-def process_price_edit(message, editted_list_position):
-    logger.info(f"For {editted_list_position} the user set the following price \"{message.text}\". Price validation launched")
-    new_price = message.text
-    validity, validated_price = price_validation(new_price)
-    logger.info(f"validity =  {validity}")
-    if validity == False:
-        logger.info("validity == False")
-        markup = create_buttons()
-        bot.send_message(
-        message.chat.id,
-        f"Can't set a {validated_price} price to \"{editted_list_position['name']}\". "\
-        "Please, enter a correct price with two digits after point",
-        reply_markup=markup)
-    else:
-        global PRESENT_IN_DATABASE, ABSENT_IN_DATABASE
-        for list_position in PRESENT_IN_DATABASE:
-            if list_position == editted_list_position:
-                list_position["price"] = validated_price
-                break
-            else:
-                pass
-        logger.info(f"Updated {list_position['name']} price to {list_position['price']}")
-        logger.info(f"PRESENT_IN_DATABASE = {PRESENT_IN_DATABASE}")
-        markup = create_buttons()
-        bot.send_message(
-            message.chat.id,
-            f"Price for \"{editted_list_position['name']}\" updated to {validated_price}. "\
-            "Do you want to correct some other price?",
-            reply_markup=markup)
-
-
-def create_buttons():
-    if PRESENT_IN_DATABASE:
-        logger.info("Starting to form the buttons")
-        markup = types.InlineKeyboardMarkup()
-        buttons_in_a_row = []
-        len_present_in_database = len(PRESENT_IN_DATABASE)
-        for list_position in PRESENT_IN_DATABASE:
-            buttons_in_a_row.append(types.InlineKeyboardButton(
-                f"{list_position['name']}: {list_position['price']} €",
-                callback_data=f"{list_position['name']}: {list_position['price']} €")
+    for list_position in context.products_present_in_database:
+        pushed_button = f"{list_position['name']}"
+        if call.data == pushed_button:
+            logger.info(f"The user wants to edit the price of the following product {pushed_button}")
+            send_reply_markup_message(
+                call.message.chat,
+                messages.CORRECTING_PRICE,
+                types.ForceReply(selective=True),
+                name = list_position['name'],
+                price = list_position['price']
             )
-            if len(buttons_in_a_row) == 2:
-                markup.row(*buttons_in_a_row)
-                buttons_in_a_row = []
-            elif (len(buttons_in_a_row) == 1) and (len_present_in_database == 1):
-                markup.add(*buttons_in_a_row)
-            len_present_in_database -= 1
-        no_button = types.InlineKeyboardButton("Nothing to edit", callback_data="Nothing to edit")
-        markup.add(no_button)
-    return markup
+            bot.register_next_step_handler(call.message, lambda message: process_price_edit(
+                message,
+                list_position)
+            )
+            return
+
+    for list_position in context.products_absent_in_database:
+        pushed_button = f"{list_position['name']}"
+        if call.data == pushed_button:
+            logger.info(f"The user wants to edit {pushed_button}")
+            send_reply_markup_message(
+                call.message.chat,
+                messages.CORRECTING_NAME,
+                types.ForceReply(selective=True),
+                name = list_position['name'],
+            )
+            bot.register_next_step_handler(call.message, lambda message: process_name_edit(
+                message,
+                list_position)
+            )
+            return
 
 
 @bot.message_handler(content_types=['photo', 'document'])
 def handle_receipt_photo(message):
+    chat_id = message.chat.id
+ 
+    context = state.Context()
+    context.chat_id = chat_id
+    state.UserContext[chat_id] = context
+
     logger.info("Receiving a photo")
     if message.content_type == 'document':
         if not message.document.mime_type.startswith("image/"):
@@ -249,22 +302,40 @@ def handle_receipt_photo(message):
         logger.info("Unsuccessful receipt uploading message sent")
     # recognition_ocr_mini(file_name)
     # filepath = recognition_turbo(file_name)
-    global PRESENT_IN_DATABASE, ABSENT_IN_DATABASE
-    # PRESENT_IN_DATABASE, ABSENT_IN_DATABASE = check_products_existence(filepath)
-    PRESENT_IN_DATABASE = [{'name': 'Apples', 'price': 3.12}, {'name': 'Tea', 'price': 1.14}, {'name': 'Coffee', 'price': 5.35}, {'name': 'Bananas', 'price': 2.11}]
-    logger.info(f"PRESENT_IN_DATABASE = {PRESENT_IN_DATABASE}")
-    if PRESENT_IN_DATABASE:
-        markup = create_buttons()
+    # check_list_of_products_existence(filepath)
+    filepath = "/home/masher/development/receipt_bot/uploaded_receipts/382807642_receipt_product_ai.json"
+    collecting_data_to_get_products(filepath, context)
+    if context.products_present_in_database:
+        context.stage = "products_present_in_database"
+        logger.info(f"stage = {context.stage}")
+        markup = price_name_buttons(context)
         bot.send_message(
             message.chat.id,
             messages.SUCCESSFUL_RECOGNITION,
             reply_markup=markup)
         logger.info("Sent the present in database products and asked if the price edition is needed")
+    elif context.products_absent_in_database:
+        context.stage = "products_absent_in_database"
+        logger.info(f"stage = {context.stage}")
+        markup = price_name_buttons(context)
+        bot.send_message(
+            message.chat.id,
+            messages.RECOGNIZED_PRODUCTS_MISSING_IN_DATABASE,
+            reply_markup=markup)
+        logger.info("Sent the absent in database products and asked for edition")
+        return
+    else:
+        bot.send_message(
+            message.chat.id,
+            messages.UNSUCCESSFUL_RECOGNITION,
+            reply_markup=markup)
+        logger.info("Sent the message that we were unable to recognize any products in the receipt")
+        return
 
 
 
 @bot.message_handler(content_types=["text"])
-def send_welcome(message):
+def unknown_message_answer(message):
     logger.info("Received an unrecoginzed message")
     bot.reply_to(message, text=messages.UNRECOGNIZED_MESSAGE_REPLY)
     logger.info("An unrecoginzed message reply sent")
