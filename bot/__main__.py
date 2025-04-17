@@ -206,7 +206,7 @@ def callback_category_creation(call):
 
     send_reply_markup_message(
         call.message.chat,
-        messages.SUGGESTION_TO_ENTER_PRODUCT,
+        messages.SUGGESTION_TO_ENTER_CATEGORY_FOR_PRODUCT,
         types.ForceReply(selective=True),
         product_name = product_name
     )
@@ -340,4 +340,7 @@ def unknown_message_answer(message):
     bot.reply_to(message, text=messages.UNRECOGNIZED_MESSAGE_REPLY)
     logger.info("An unrecoginzed message reply sent")
 
-bot.polling()
+# bot.polling()
+
+if __name__ == "__main__":
+    bot.polling()
