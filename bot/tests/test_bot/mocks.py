@@ -1,5 +1,7 @@
 import pytest
 
+from telebot import types
+
 
 class FakeChat:
     def __init__(self, chat_id, username=None, first_name=None, last_name=None):
@@ -15,12 +17,54 @@ class FakeMessage:
         self.text = text
 
 
+# class FakePhoto:
+#     def __init__(self, file_id="FAKEID", width=100, height=100, file_size=1234):
+#         self.file_id = file_id
+#         self.width = width
+#         self.height = height
+#         self.file_size = file_size
+
+
+# class FakeDocument:
+#     def __init__(self, file_id, mime_type="image/jpeg"):
+#         self.file_id = file_id
+#         self.mime_type = mime_type
+#         self.file_name = "receipt.jpg"
+
+
 class FakeCallbackQuery:
     def __init__(self, chat_id, callback_data, username=None, first_name=None, last_name=None,):
         self.message = type("FakeMessage", (), {
             "chat": FakeChat(chat_id, username=username, first_name=first_name, last_name=last_name),
         })
         self.data = callback_data
+
+
+class FakePhotoMessage:
+    def __init__(self, chat_id, file_id):
+        self.chat = FakeChat(chat_id)
+        self.content_type = "photo"
+        self.photo = [types.PhotoSize(
+            file_id=file_id,
+            file_unique_id=f"uniq_{file_id}",
+            width=1,
+            height=1,
+            file_size=1
+            )
+        ]
+
+
+class FakeDocumentMessage:
+    def __init__(self, chat_id, file_id, mime_type="image/jpeg"):
+        self.chat = FakeChat(chat_id)
+        self.content_type = "document"
+        self.document = types.Document(
+            file_id=file_id,
+            file_unique_id="unique-"+file_id,
+            file_name="receipt.jpg",
+            mime_type=mime_type,
+            file_size=1234
+        )
 
 
 class FakeResponse:

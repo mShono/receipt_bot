@@ -1,7 +1,8 @@
+import os
 import pytest
 from .mocks import FakeChat, FakeMessage, FakeCallbackQuery
 
-from telebot import apihelper, util
+from telebot import apihelper, util, types
 
 
 def fake_request_sender(method, url, **kwargs):
@@ -16,6 +17,29 @@ def fake_request_sender(method, url, **kwargs):
 @pytest.fixture(autouse=True)
 def disable_real_requests(monkeypatch):
     monkeypatch.setattr(apihelper, "CUSTOM_REQUEST_SENDER", fake_request_sender)
+
+
+@pytest.fixture
+def real_image_bytes():
+    path = os.path.join(os.getcwd(), "test_receipts", "K_market_2025-03-18_2.jpg")
+    with open(path, "rb") as f:
+        return f.read()
+
+
+@pytest.fixture(autouse=True)
+def disable_file_requests(monkeypatch, real_image_bytes):
+    def fake_get_file(file_id):
+        return types.File(
+            file_id=file_id,
+            file_unique_id="unique-"+file_id,
+            file_path=os.path.join(os.getcwd(), "test_receipts", "K_market_2025-03-18_2.jpg")
+        )
+
+    def fake_download_file(path):
+        return real_image_bytes
+
+    monkeypatch.setattr("bot.__main__.bot.get_file", fake_get_file)
+    monkeypatch.setattr("bot.__main__.bot.download_file", fake_download_file)
 
 
 @pytest.fixture
@@ -43,7 +67,7 @@ def mock_get_data_info_positive(monkeypatch):
                 "last_name": "User",
             }
         return
-    monkeypatch.setattr("bot.bot_utils.post_data_info", fake_get_data_info_positive)
+    monkeypatch.setattr("bot.bot_utils.get_data_info", fake_get_data_info_positive)
     return fake_get_data_info_positive
 
 
@@ -53,6 +77,27 @@ def mock_get_data_info_negative(monkeypatch):
         return False, None
     monkeypatch.setattr("bot.bot_utils.get_data_info", fake_data_info_negative)
     return fake_data_info_negative
+
+
+@pytest.fixture
+def mock_get_data_info(monkeypatch):
+    def fake_get_data_info(endpoint, data):
+        if endpoint == "product":
+            if data =="Eggs":
+                return True, {
+                    "id": 1,
+                }
+            if data =="Apples":
+                return True, {
+                    "id": 2,
+                }
+            if data =="Tea":
+                return False, None
+            if data =="Coffee":
+                return False, None
+        return
+    monkeypatch.setattr("bot.bot_utils.get_data_info", fake_get_data_info)
+    return fake_get_data_info
 
 
 @pytest.fixture
@@ -74,7 +119,7 @@ def mock_post_data_info_negative(monkeypatch):
 
 
 @pytest.fixture
-def mock_fake_send_message(monkeypatch):
+def mock_send_message(monkeypatch):
     sent_messages = []
     def fake_send_message(chat_id, text, reply_markup=None):
         sent_messages.append((chat_id, text, reply_markup))
@@ -88,3 +133,10 @@ def mock_fake_send_message(monkeypatch):
     monkeypatch.setattr("bot.__main__.bot.send_message", fake_send_message)
     monkeypatch.setattr("bot.messages.bot.send_message", fake_send_message)
     return sent_messages
+
+
+@pytest.fixture
+def fake_message_factory():
+    def _factory(chat_id=12345, text="/start"):
+        return FakeMessage(chat_id, text)
+    return _factory
