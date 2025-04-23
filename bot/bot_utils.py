@@ -170,7 +170,7 @@ def collecting_data_to_get_products(filepath, context):
             price = list_position["price"]
         except Exception as e:
             logger.error(f"Reading the json file with products failed: {e}")
-            raise e
+            return
         integer_price = float_to_int(price)
         list_position["price"] = integer_price
         status, product_info = get_data_info("product", product_name)

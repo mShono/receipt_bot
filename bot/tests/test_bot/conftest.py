@@ -1,6 +1,6 @@
 import os
 import pytest
-from .mocks import FakeChat, FakeMessage, FakeCallbackQuery
+from .mocks import FakeChat, FakeMessage, FakeCallbackQuery, FakePhotoMessage
 
 from telebot import apihelper, util, types
 
@@ -80,22 +80,24 @@ def mock_get_data_info_negative(monkeypatch):
 
 
 @pytest.fixture
-def mock_get_data_info(monkeypatch):
+def mock_get_data_info(monkeypatch, request):
+    data_map = request.param
     def fake_get_data_info(endpoint, data):
-        if endpoint == "product":
-            if data =="Eggs":
-                return True, {
-                    "id": 1,
-                }
-            if data =="Apples":
-                return True, {
-                    "id": 2,
-                }
-            if data =="Tea":
-                return False, None
-            if data =="Coffee":
-                return False, None
-        return
+        return data_map.get(data, (False, None))
+        # if endpoint == "product":
+        #     if data =="Eggs":
+        #         return True, {
+        #             "id": 1,
+        #         }
+        #     if data =="Apples":
+        #         return True, {
+        #             "id": 2,
+        #         }
+        #     if data =="Tea":
+        #         return False, None
+        #     if data =="Coffee":
+        #         return False, None
+        # return
     monkeypatch.setattr("bot.bot_utils.get_data_info", fake_get_data_info)
     return fake_get_data_info
 
@@ -136,7 +138,5 @@ def mock_send_message(monkeypatch):
 
 
 @pytest.fixture
-def fake_message_factory():
-    def _factory(chat_id=12345, text="/start"):
-        return FakeMessage(chat_id, text)
-    return _factory
+def mock_photo_message():
+    return FakePhotoMessage(chat_id=42, file_id="PHOTO123")
