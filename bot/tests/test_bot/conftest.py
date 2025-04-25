@@ -64,6 +64,18 @@ def fake_context():
 
 
 @pytest.fixture
+def fake_context_without_absent():
+    context = Context()
+    context.chat_id = 42
+    context.stage = "products_present_in_database"
+    eggs = {"name": "Eggs", "price": 100}
+    context.products_present_in_database = [eggs]
+    context.products_absent_in_database = []
+    UserContext[42] = context
+    return context
+
+
+@pytest.fixture
 def fake_message_factory():
     def _factory(chat_id=12345, text="/start"):
         return FakeMessage(chat_id, text)
