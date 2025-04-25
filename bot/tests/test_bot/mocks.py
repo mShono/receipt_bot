@@ -17,21 +17,6 @@ class FakeMessage:
         self.text = text
 
 
-# class FakePhoto:
-#     def __init__(self, file_id="FAKEID", width=100, height=100, file_size=1234):
-#         self.file_id = file_id
-#         self.width = width
-#         self.height = height
-#         self.file_size = file_size
-
-
-# class FakeDocument:
-#     def __init__(self, file_id, mime_type="image/jpeg"):
-#         self.file_id = file_id
-#         self.mime_type = mime_type
-#         self.file_name = "receipt.jpg"
-
-
 class FakeCallbackQuery:
     def __init__(self, chat_id, callback_data, username=None, first_name=None, last_name=None,):
         self.message = type("FakeMessage", (), {

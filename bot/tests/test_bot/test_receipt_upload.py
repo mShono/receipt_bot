@@ -1,6 +1,4 @@
 import os
-import pytest
-from .mocks import FakePhotoMessage
 from ...__main__ import handle_receipt_photo
 from ...messages import SUCCESSFUL_RECOGNITION, RECOGNIZED_PRODUCTS_MISSING_IN_DATABASE, UNSUCCESSFUL_RECOGNITION
 from ...state import UserContext

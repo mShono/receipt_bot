@@ -1,6 +1,7 @@
 import os
 import pytest
 from .mocks import FakeChat, FakeMessage, FakeCallbackQuery, FakePhotoMessage
+from ...state import Context, UserContext
 
 from telebot import apihelper, util, types
 
@@ -40,6 +41,26 @@ def disable_file_requests(monkeypatch, real_image_bytes):
 
     monkeypatch.setattr("bot.__main__.bot.get_file", fake_get_file)
     monkeypatch.setattr("bot.__main__.bot.download_file", fake_download_file)
+
+
+@pytest.fixture(autouse=True)
+def isolate_context():
+    UserContext.clear()
+    yield
+    UserContext.clear()
+
+
+@pytest.fixture
+def fake_context():
+    context = Context()
+    context.chat_id = 42
+    context.stage = "products_present_in_database"
+    eggs = {"name": "Eggs", "price": 100}
+    tea = {"name":"Tea",  "price":200}
+    context.products_present_in_database = [eggs]
+    context.products_absent_in_database = [tea]
+    UserContext[42] = context
+    return context
 
 
 @pytest.fixture
@@ -84,20 +105,6 @@ def mock_get_data_info(monkeypatch, request):
     data_map = request.param
     def fake_get_data_info(endpoint, data):
         return data_map.get(data, (False, None))
-        # if endpoint == "product":
-        #     if data =="Eggs":
-        #         return True, {
-        #             "id": 1,
-        #         }
-        #     if data =="Apples":
-        #         return True, {
-        #             "id": 2,
-        #         }
-        #     if data =="Tea":
-        #         return False, None
-        #     if data =="Coffee":
-        #         return False, None
-        # return
     monkeypatch.setattr("bot.bot_utils.get_data_info", fake_get_data_info)
     return fake_get_data_info
 
@@ -140,3 +147,30 @@ def mock_send_message(monkeypatch):
 @pytest.fixture
 def mock_photo_message():
     return FakePhotoMessage(chat_id=42, file_id="PHOTO123")
+
+
+@pytest.fixture
+def mock_buttons():
+    return object()
+
+
+@pytest.fixture
+def captured_calls(monkeypatch, mock_buttons):
+    calls = []
+    def fake_send_reply_markup_message(chat, text, markup, **kwargs):
+        calls.append((chat.id, text, markup, kwargs))
+    monkeypatch.setattr("bot.bot_utils.send_reply_markup_message", fake_send_reply_markup_message)
+
+    monkeypatch.setattr("bot.bot_utils.price_name_buttons", lambda ctx: mock_buttons)
+    return calls
+
+
+@pytest.fixture
+def captured_register_handler(monkeypatch):
+    captured = {}
+    def fake_register_next_step_handler(msg, handler):
+        captured['message'] = msg
+        captured['handler'] = handler
+    monkeypatch.setattr("bot.__main__.bot.register_next_step_handler",
+                        fake_register_next_step_handler)
+    return captured
