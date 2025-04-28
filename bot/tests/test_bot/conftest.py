@@ -99,6 +99,8 @@ def mock_get_data_info_positive(monkeypatch):
                 "first_name": "Test",
                 "last_name": "User",
             }
+        if endpoint == "product":
+            return True, {}
         return
     monkeypatch.setattr("bot.bot_utils.get_data_info", fake_get_data_info_positive)
     return fake_get_data_info_positive
