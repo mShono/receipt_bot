@@ -115,6 +115,21 @@ def mock_get_data_info_negative(monkeypatch):
 
 
 @pytest.fixture
+def mock_get_data_info_mixed(monkeypatch):
+    def fake_get_data_info_mixed(endpoint, data):
+        if endpoint == "product":
+            if data == "Eggs":
+                return True, {"id": 1}
+            elif data == "Apples":
+                return True, {"id": 2}
+            else:
+                return False, {}
+        return
+    monkeypatch.setattr("bot.bot_utils.get_data_info", fake_get_data_info_mixed)
+    return fake_get_data_info_mixed
+
+
+@pytest.fixture
 def mock_get_data_info(monkeypatch, request):
     data_map = request.param
     def fake_get_data_info(endpoint, data):
