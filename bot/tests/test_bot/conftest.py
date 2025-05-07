@@ -1,6 +1,6 @@
 import os
 import pytest
-from .mocks import FakeChat, FakeMessage, FakeCallbackQuery, FakePhotoMessage
+from .mocks import FakeMessage, FakeCallbackQuery, FakePhotoMessage
 from ...state import Context, UserContext
 
 from telebot import apihelper, util, types
@@ -55,10 +55,8 @@ def fake_context():
     context = Context()
     context.chat_id = 42
     context.stage = "products_present_in_database"
-    eggs = {"name": "Eggs", "price": 100}
-    tea = {"name":"Tea",  "price":200}
-    context.products_present_in_database = [eggs]
-    context.products_absent_in_database = [tea]
+    context.products_present_in_database = [{"name": "Eggs", "price": 100}]
+    context.products_absent_in_database = [{"name":"Tea",  "price":200}]
     UserContext[42] = context
     return context
 
@@ -94,13 +92,14 @@ def mock_get_data_info_positive(monkeypatch):
     def fake_get_data_info_positive(endpoint, data):
         if endpoint == "users":
             return True, {
+                "id": 1,
                 "chat_id": 12345,
                 "username": data,
                 "first_name": "Test",
                 "last_name": "User",
             }
-        if endpoint == "product":
-            return True, {}
+        if endpoint == "product" or endpoint == "expense":
+            return True, {"id": 1}
         return
     monkeypatch.setattr("bot.bot_utils.get_data_info", fake_get_data_info_positive)
     return fake_get_data_info_positive
@@ -141,9 +140,12 @@ def mock_get_data_info(monkeypatch, request):
 @pytest.fixture
 def mock_post_data_info_positive(monkeypatch):
     def fake_post_data_info_positive(endpoint, data):
-        if endpoint == "users":
-            return True, 1
-        return
+        return True, 1
+        # if endpoint == "users":
+        #     return True, 1
+        # if endpoint =="category":
+        #     return True, 1
+        # return
     monkeypatch.setattr("bot.bot_utils.post_data_info", fake_post_data_info_positive)
     return fake_post_data_info_positive
 
@@ -159,7 +161,7 @@ def mock_post_data_info_negative(monkeypatch):
 @pytest.fixture
 def mock_send_message(monkeypatch):
     sent_messages = []
-    def fake_send_message(chat_id, text, reply_markup=None):
+    def fake_send_message(chat_id, text=None, reply_markup=None):
         sent_messages.append((chat_id, text, reply_markup))
         return {"ok": True, "result": {
             "message_id": 1,
@@ -170,6 +172,7 @@ def mock_send_message(monkeypatch):
         }
     monkeypatch.setattr("bot.__main__.bot.send_message", fake_send_message)
     monkeypatch.setattr("bot.messages.bot.send_message", fake_send_message)
+    monkeypatch.setattr("bot.bot_utils.bot.send_message", fake_send_message)
     return sent_messages
 
 

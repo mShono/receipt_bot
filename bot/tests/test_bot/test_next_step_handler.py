@@ -1,6 +1,6 @@
 import bot.__main__ as main_mod
-from ...__main__ import callback_inline, callback_nothing_after_present, collecting_data_and_post_expense, collecting_data_and_post_item, callback_nothing_after_absent, callback_existing_category
-from ...messages import RECOGNIZED_PRODUCTS_MISSING_IN_DATABASE, UPLOAD_EXPENCE, UNSUCCESSFUL_UPLOAD_EXPENCE, SUCCESSFUL_CATEGORY_CORRECT
+from ...__main__ import callback_inline, callback_nothing_after_present, collecting_data_and_post_expense, collecting_data_and_post_item, callback_nothing_after_absent, callback_existing_category, callback_category_creation
+from ...messages import RECOGNIZED_PRODUCTS_MISSING_IN_DATABASE, UPLOAD_EXPENCE, UNSUCCESSFUL_UPLOAD_EXPENCE, SUCCESSFUL_CATEGORY_CORRECT, SUGGESTION_TO_ENTER_CATEGORY_FOR_PRODUCT
 from .mocks import FakeMessage
 
 def run_next_step_handler_test(captured_register_handler, monkeypatch, message, fake_call, pussed_button, next_step_function):
@@ -138,7 +138,7 @@ def test_press_nothing_after_absent_button_sends_unsuccessful_message(monkeypatc
     )
 
 
-def test_press_existing_category_sends_successful_category_correct_message(monkeypatch, fake_callback_query_factory, fake_context, mock_send_message):
+def test_press_existing_category_post_the_expense(monkeypatch, fake_callback_query_factory, fake_context, mock_send_message):
     context = fake_context
     context.stage = "new_expense"
     fake_call = fake_callback_query_factory(
@@ -171,3 +171,69 @@ def test_press_existing_category_sends_successful_category_correct_message(monke
     assert message_text == expected_message
 
     assert called_collecting_data_and_post_item['status'] == True
+
+
+def test_press_existing_category_sends_absent_buttons(monkeypatch, fake_callback_query_factory, fake_context, mock_send_message):
+    context = fake_context
+    context.stage = "products_absent_in_database"
+    fake_call = fake_callback_query_factory(
+        chat_id=42,
+        callback_data="exist_cat:Grocery, prod:Tea")
+
+    called_get_category_id = {}
+    def mock_get_category_id(category_name, context):
+        called_get_category_id['name'] = category_name
+        return 5
+    monkeypatch.setattr("bot.__main__.get_category_id", mock_get_category_id)
+    monkeypatch.setattr("bot.__main__.post_data_info", lambda *args, **kwargs: (True, None))
+
+    callback_existing_category(fake_call)
+
+    expected_message = SUCCESSFUL_CATEGORY_CORRECT.format(
+        category_name="Grocery",
+        product_name="Tea"
+    )
+
+    assert called_get_category_id['name'] == "Grocery"
+
+    assert len(mock_send_message) == 1
+    _, message_text, markup = mock_send_message[0]
+    assert message_text == expected_message
+
+    count = 0
+    for row in markup.keyboard:
+        for button in row:
+            if count == 0:
+                assert button.callback_data == "Tea"
+            if count == 1:
+                assert button.callback_data == "Nothing_to_edit_after_ABSENT_IN_DATABASE"
+            count += 1
+
+
+def test_press_category_creation_triggers_post_category_product(monkeypatch, captured_register_handler, fake_callback_query_factory, fake_context, mock_send_message):
+    fake_call = fake_callback_query_factory(
+        chat_id=42,
+        callback_data="categ_cr, prod:Tea")
+
+    expected_message = SUGGESTION_TO_ENTER_CATEGORY_FOR_PRODUCT.format(
+        product_name="Tea"
+    )
+
+    callback_category_creation(fake_call)
+
+    assert len(mock_send_message) == 1
+    _, message_text, _ = mock_send_message[0]
+    assert message_text == expected_message
+
+    assert 'handler' in captured_register_handler
+    handler = captured_register_handler['handler']
+
+    called_post_category_product = {}
+    def mock_post_category_product(fake_call, product_name):
+        called_post_category_product['status'] = True
+    monkeypatch.setattr("bot.__main__.post_category_product", mock_post_category_product)
+
+    message=FakeMessage(chat_id=42, text="unused_text")
+
+    handler(message)
+    assert called_post_category_product.get('status', False) is True
