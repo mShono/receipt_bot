@@ -5,6 +5,17 @@ from ...state import Context, UserContext
 
 from telebot import apihelper, util, types
 
+@pytest.fixture(autouse=True)
+def clear_user_context():
+    UserContext.clear()
+    Context.products_present_in_database = []
+    Context.products_absent_in_database = []
+    Context.new_expense = []
+    yield
+    UserContext.clear()
+    Context.products_present_in_database = []
+    Context.products_absent_in_database = []
+    Context.new_expense = []
 
 def fake_request_sender(method, url, **kwargs):
     response_json = '{"ok": true, "result": {' \
@@ -98,11 +109,12 @@ def mock_get_data_info_positive(monkeypatch):
                 "first_name": "Test",
                 "last_name": "User",
             }
-        if endpoint == "product" or endpoint == "expense":
+        if endpoint == "product":
+            return True, {'name': 'Product', 'id': 1, 'category': 1}
+        elif endpoint == "expense":
             return True, {"id": 1}
         return
     monkeypatch.setattr("bot.bot_utils.get_data_info", fake_get_data_info_positive)
-    monkeypatch.setattr("bot.__main__.get_data_info", fake_get_data_info_positive)
     return fake_get_data_info_positive
 
 
