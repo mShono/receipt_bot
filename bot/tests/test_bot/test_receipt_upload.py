@@ -31,7 +31,7 @@ def test_handle_receipt_present(monkeypatch, mock_photo_message, mock_send_messa
     run_receipt_test(
         monkeypatch, mock_photo_message, mock_send_message,
         incoming_data,
-        expected_present=[{"name":"Eggs","price":3.14,"id":1}, {"name":"Apples","price":3.12,"id":2}],
+        expected_present=[{"name":"Eggs","price":100,"id":1}, {"name":"Apples","price":200,"id":2}],
         expected_absent=[{"name":"Tea","price":114},{"name":"Coffee","price":550}],
         expected_message=SUCCESSFUL_RECOGNITION,
         test_filepath=test_filepath

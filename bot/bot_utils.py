@@ -219,6 +219,7 @@ def post_category_product(message, product_name):
         send_reply_markup_message(
             message.chat,
             messages.SUCCESSFUL_CATEGORY_CORRECT,
+            price_name_buttons(context),
             category_name = message.text,
             product_name = product_name
         )

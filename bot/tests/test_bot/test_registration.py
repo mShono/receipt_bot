@@ -19,8 +19,8 @@ def test_handle_register_successful_registration(mock_send_message, fake_callbac
     callback_register(fake_call)
     
     assert len(mock_send_message) == 2
-    _, msg_text, _ = mock_send_message[0]
-    assert msg_text == SUCCESSFUL_REGISTRATION
+    _, message_text, _ = mock_send_message[0]
+    assert message_text == SUCCESSFUL_REGISTRATION
     _, _, markup = mock_send_message[1]
     for row in markup.keyboard:
         for button in row:

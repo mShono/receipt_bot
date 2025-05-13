@@ -16,7 +16,7 @@ def run_next_step_handler_test(captured_register_handler, monkeypatch, message, 
     monkeypatch.setattr(main_mod, next_step_function.__name__, mock_next_step_function)
 
     handler(message)
-    print(called)
+    # print(called)
     assert called.get('status', False) is True
     assert called['list_position'] is pussed_button
 
