@@ -301,8 +301,8 @@ def handle_receipt_photo(message):
             messages.UNSUCCESSFUL_RECEIPT_UPLOADING)
         logger.info("Unsuccessful receipt uploading message sent")
     # recognition_ocr_mini(file_name)
-    filepath = recognition_turbo(file_name)
-    # filepath = "/home/masher/development/receipt_bot/uploaded_receipts/382807642_receipt_product_ai.json"
+    # filepath = recognition_turbo(file_name)
+    filepath = "/home/masher/development/receipt_bot/uploaded_receipts/382807642_receipt_product_ai.json"
     # filepath = "/home/masher/development/receipt_bot/uploaded_receipts/test_unrecognised_receipt.json"
     collecting_data_to_get_products(filepath, context)
     if context.products_present_in_database:
