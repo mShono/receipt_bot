@@ -170,7 +170,7 @@ def collecting_data_to_get_products(filepath, context):
             price = list_position["price"]
         except Exception as e:
             logger.error(f"Reading the json file with products failed: {e}")
-            raise e
+            return
         integer_price = float_to_int(price)
         list_position["price"] = integer_price
         status, product_info = get_data_info("product", product_name)
@@ -212,13 +212,16 @@ def post_category_product(message, product_name):
             message.chat,
             messages.SUCCESSFUL_CATEGORY_CORRECT,
             category_name = message.text,
+            product_name = product_name
         )
         collecting_data_and_post_item(message)
     elif "absent" in context.stage:
         send_reply_markup_message(
             message.chat,
             messages.SUCCESSFUL_CATEGORY_CORRECT,
+            price_name_buttons(context),
             category_name = message.text,
+            product_name = product_name
         )
 
 
@@ -249,6 +252,7 @@ def collecting_data_and_post_user(message):
 
 def collecting_data_and_post_expense(message):
     context = state.UserContext[message.chat.id]
+    expense_dict = {}
     if not context.new_expense:
         get_user_info_status, user_info = get_data_info("users", message.chat.username)
         if not get_user_info_status:
@@ -256,22 +260,21 @@ def collecting_data_and_post_expense(message):
             if not post_user_status:
                 return False, None
         else:
-            user_id = user_info["id"]
-        logger.info(f"user_id = {user_id}")
+            try:
+                user_id = user_info["id"]
+            except Exception as e:
+                logger.error(f"Reading the json file response with user info failed: {e}")
+                raise e
+        expense_dict["user"] = user_id
+        logger.info(f"expense_dict['user'] = {expense_dict['user']}")
+
     context.stage = "new_expense"
     context.new_expense.extend(context.products_present_in_database)
     context.products_present_in_database.clear()
     context.new_expense.extend(context.products_absent_in_database)
     context.products_absent_in_database.clear()
     logger.info(f"new_expense = {context.new_expense}")
-    expense_dict = {}
 
-    try:
-        expense_dict["user"] = user_id
-        logger.info(f"expense_dict['user'] = {expense_dict['user']}")
-    except Exception as e:
-        logger.error(f"Reading the json file response with user info failed: {e}")
-        raise e
     post_expense_status, expense_id = post_data_info("expense", expense_dict)
     if not post_expense_status:
         return False, None
@@ -287,10 +290,9 @@ def collecting_expense_item_data(context, item, product_info):
     item["price"] = float_to_int(item["price"])
     item.pop("name")
     if item.get("id"):
-        logger.info(f"Item  \"{product_info["name"]}\" exists in database")
+        logger.info(f"Item \"{product_info["name"]}\" exists in database")
         item.pop("id")
     return item
-
 
 
 def collecting_data_and_post_item(message):

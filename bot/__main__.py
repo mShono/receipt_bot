@@ -206,7 +206,7 @@ def callback_category_creation(call):
 
     send_reply_markup_message(
         call.message.chat,
-        messages.SUGGESTION_TO_ENTER_PRODUCT,
+        messages.SUGGESTION_TO_ENTER_CATEGORY_FOR_PRODUCT,
         types.ForceReply(selective=True),
         product_name = product_name
     )
@@ -302,8 +302,8 @@ def handle_receipt_photo(message):
         logger.info("Unsuccessful receipt uploading message sent")
     # recognition_ocr_mini(file_name)
     # filepath = recognition_turbo(file_name)
-    # check_list_of_products_existence(filepath)
     filepath = "/home/masher/development/receipt_bot/uploaded_receipts/382807642_receipt_product_ai.json"
+    # filepath = "/home/masher/development/receipt_bot/uploaded_receipts/test_unrecognised_receipt.json"
     collecting_data_to_get_products(filepath, context)
     if context.products_present_in_database:
         context.stage = "products_present_in_database"
@@ -327,8 +327,8 @@ def handle_receipt_photo(message):
     else:
         bot.send_message(
             message.chat.id,
-            messages.UNSUCCESSFUL_RECOGNITION,
-            reply_markup=markup)
+            messages.UNSUCCESSFUL_RECOGNITION
+        )
         logger.info("Sent the message that we were unable to recognize any products in the receipt")
         return
 
@@ -340,4 +340,7 @@ def unknown_message_answer(message):
     bot.reply_to(message, text=messages.UNRECOGNIZED_MESSAGE_REPLY)
     logger.info("An unrecoginzed message reply sent")
 
-bot.polling()
+# bot.polling()
+
+if __name__ == "__main__":
+    bot.polling()

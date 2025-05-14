@@ -43,6 +43,7 @@ SUCCESSFUL_NAME_UPDATE = "Updated \"{old_name}\" to \"{new_name}\". "\
 # Category correct
 SUGGESTION_TO_ENTER_CATEGORY_FOR_PRODUCT = "Please, enter a category for the product \"{product_name}\""
 SUCCESSFUL_CATEGORY_CORRECT = "The category \"{category_name}\" successfully set for the product {product_name}."
+UNSUCCESSFUL_CATEGORY_CREATION = "Something went wrong while creating category for \"{product_name}\". Please, try again:"
 # Price correct
 CORRECTING_PRICE = "Current price for \"{name}\" is {price} € "\
         "Please enter the correct price:"
@@ -51,6 +52,8 @@ WRONG_PRICE = "Can't set a {price} price to \"{product}\". "\
         "Please, enter a correct price with two digits after point"
 SUCCESSFUL_PRICE_UPDATE = "Price for \"{product}\" updated to {price}. "\
             "Do you want to correct something else?"
+# Post the poduct
+UNSUCCESSFUL_PPRODUCT_CREATION = "Something went wrong while posting new product \"{product_name}\". Please, try again:"
 # Expence messages
 UPLOAD_EXPENCE = "Uploading expense to database"
 SUCCESSFUL_UPLOAD_EXPENCE = "Your expense was successfully uploaded to database! ✅"
@@ -70,13 +73,15 @@ def send_error_message(message, product_name, context, error_post_request):
     if error_post_request == "category":
         bot.send_message(
             message.chat.id,
-            f"Something went wrong while creating category for \"{product_name}\". Please, try again:",
+            UNSUCCESSFUL_CATEGORY_CREATION.format(product_name=product_name),
+            # f"Something went wrong while creating category for \"{product_name}\". Please, try again:",
             reply_markup=force_reply
         )
     elif error_post_request == "product":
         bot.send_message(
             message.chat.id,
-            f"Something went wrong while posting new product \"{product_name}\". Please, try again:",
+            UNSUCCESSFUL_PPRODUCT_CREATION.format(product_name=product_name),
+            # f"Something went wrong while posting new product \"{product_name}\". Please, try again:",
             reply_markup=force_reply
         )
     stage = context.stage
