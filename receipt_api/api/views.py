@@ -1,3 +1,4 @@
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -8,6 +9,7 @@ from .models import (Category, Product, Currency, User,
 from .serializers import (CategorySerializer, ProductSerializer,
                           CurrencySerializer, UserSerializer,
                           ExpenseSerializer, ExpenseItemSerializer)
+
 
 class CategoryViewSet(ModelViewSet):
 
@@ -21,26 +23,6 @@ class ProductViewSet(NotFoundListMixin, ModelViewSet):
     serializer_class = ProductSerializer
     filter_backends = (filters.SearchFilter,)
     search_fields = ('=name',) 
-
-
-    # def list(self, request, *args, **kwargs):
-    #     """Redefining the list function so that it returns status.HTTP_404_NOT_FOUND"""
-
-    #     queryset = self.filter_queryset(self.get_queryset())
-
-    #     if not queryset.exists():
-    #         return Response(
-    #             {"detail": "Not found"},
-    #             status=status.HTTP_404_NOT_FOUND
-    #         )
-
-    #     page = self.paginate_queryset(queryset)
-    #     if page is not None:
-    #         serializer = self.get_serializer(page, many=True)
-    #         return self.get_paginated_response(serializer.data)
-
-    #     serializer = self.get_serializer(queryset, many=True)
-    #     return Response(serializer.data)
 
 
 class CurrencyViewSet(ModelViewSet):
@@ -61,6 +43,12 @@ class ExpenseViewSet(ModelViewSet):
 
     queryset = Expense.objects.all()
     serializer_class = ExpenseSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filterset_fields = {
+        "user__chat_id": ["exact"],
+        "created_at": ["exact", "range",],
+    }
+    # search_fields = ('=user__chat_id', '=id',)
 
 
 class ExpenseItemViewSet(NotFoundListMixin, ModelViewSet):
