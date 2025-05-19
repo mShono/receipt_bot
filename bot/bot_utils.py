@@ -8,9 +8,9 @@ from telebot import TeleBot, types
 
 from . import messages
 from . import state
-from .buttons import price_name_buttons, category_buttons
-from .conversions import float_to_int
-from .django_interaction import get_data_info, check_existent_categories, post_data_info
+from .buttons import price_name_buttons, category_buttons, keyboard_main_menu
+from .conversions import float_to_int, int_to_float_str
+from .django_interaction import get_data_info, check_existent_categories, post_data_info, get_filtrated_info
 from .file_operations import file_opening
 from .messages import send_reply_markup_message
 
@@ -327,3 +327,24 @@ def collecting_data_and_post_item(message):
         _, expense_info = get_data_info("expense", context.expense_id)
         context.expense_id = None
         logger.info(f"expense info = {expense_info}")
+        keyboard = keyboard_main_menu
+        bot.send_message(context.chat_id, messages.BUTTON_SUGGESTION, reply_markup=keyboard)
+
+
+def get_receipt_data(message, receipt_period):
+    status, product_info = get_filtrated_info("expense", "user__chat_id",  message.chat.id, receipt_period)
+    if not status:
+        bot.send_message(
+            message.chat.id,
+            messages.UNSUCCESSFUL_EXPENCE_REQUEST)
+        return
+    receipts = []
+    for receipt in product_info:
+        items = receipt["items"]
+        products = ""
+        for item in items:
+            float_price = int_to_float_str(item["price"])
+            products += f"{item["product"]}: {float_price} €\n"
+        products = products.rstrip("\n")
+        receipts.append(products)
+    return receipts

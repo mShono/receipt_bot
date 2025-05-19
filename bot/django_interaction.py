@@ -46,6 +46,28 @@ def get_data_info(endpoint, data):
         raise e
 
 
+def get_filtrated_info(endpoint, search_field, data, period):
+    logger.info(f"Checking the existance of the {endpoint} filter \"{search_field}\" \"{data}\" in the database for {period}")
+    try:
+        response = requests.get(f"{DJANGO_API_URL}{endpoint}/?{search_field}={data}&{period}", headers=headers)
+        if response.status_code == 200:
+            logger.info(f"\"{data}\" is in the database")
+            data_info = json.loads(response.text)
+            logger.info(f"data_info = {data_info}")
+            return True, data_info
+        elif response.status_code == 404:
+            logger.info(f"\"{data}\" is not in the database")
+            return False, None
+        else:
+            logger.info(f"Received an unpredictable response from Django database: {response.status_code}")
+            response_saving(RESPONSE_FOLDER, f"{endpoint}_get_data", response.text)
+            return False, None
+    except Exception as e:
+        logger.error(f"Reading the json file with {endpoint} failed: {e}")
+        response_saving(RESPONSE_FOLDER, f"{endpoint}_get_data", response.text)
+        raise e
+
+
 def check_existent_categories(context):
     logger.info("Checking the categories existing in the database")
     try:

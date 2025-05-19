@@ -8,8 +8,8 @@ from telebot import TeleBot, types
 
 from . import messages
 from . import state
-from .bot_utils import process_price_edit, process_name_edit, post_category_product, get_category_id, collecting_data_and_post_expense, collecting_data_to_get_products, collecting_data_and_post_item, collecting_data_and_post_user
-from .buttons import price_name_buttons
+from .bot_utils import process_price_edit, process_name_edit, post_category_product, get_category_id, collecting_data_and_post_expense, collecting_data_to_get_products, collecting_data_and_post_item, collecting_data_and_post_user, get_receipt_data
+from .buttons import price_name_buttons, keyboard_main_menu, receipt_buttons
 from .django_interaction import post_data_info
 from .file_operations import file_saving
 from .messages import send_reply_markup_message
@@ -50,14 +50,52 @@ logger.info("Receipt_bot launched")
 def wake_up(message):
     chat = message.chat
     markup = types.InlineKeyboardMarkup()
-    # register_url_button = types.InlineKeyboardButton("Register", url="https://ya.ru")
     register_callback_button = types.InlineKeyboardButton("Register", callback_data="Register")
     markup.add(register_callback_button)
     bot.send_message(
         chat_id=chat.id,
         text=messages.INVITATION_TO_REGISTER,
         reply_markup=markup)
+    keyboard = keyboard_main_menu()
+    bot.send_message(chat_id=chat.id, text=messages.BUTTON_SUGGESTION, reply_markup=keyboard)
     logger.info("Invitation for registration sent")
+
+
+@bot.message_handler(content_types=["text"], func = lambda msg: msg.text=="📥 Upload new receipt")
+def menu_handler(message):
+    bot.send_message(
+        message.chat.id,
+        messages.UPLOAD_RECEIRT)
+    logger.info("Asked for receipt uploading")
+
+
+@bot.message_handler(content_types=["text"], func = lambda msg: msg.text=="🧾 View my receipts")
+def menu_handler(message):
+    markup = receipt_buttons()
+    bot.send_message(message.chat.id, text=messages.BUTTON_SUGGESTION, reply_markup=markup)
+    logger.info("Showed the user his receipt buttons")
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("receipt"))
+def callback_receipt_handler(call):
+    try:
+        _, receipt_period = call.data.split(":", 1)
+    except Exception as e:
+        logger.error(f"Error parsing callback_data: {call.data} - {e}")
+        return
+
+    receipts = get_receipt_data(call.message, receipt_period)
+    if not receipts:
+        bot.send_message(
+            call.message.chat.id,
+            messages.NO_RECEIPTS)
+        logger.info("There're no receipts for the requested period")
+    for receipt in receipts:
+        logger.info(f"receipt = {receipt}")
+        bot.send_message(
+            call.message.chat.id,
+            receipt)
+    logger.info("Showed the user his receipts")
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "Register")

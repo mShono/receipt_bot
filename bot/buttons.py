@@ -1,4 +1,5 @@
 import logging
+import datetime
 
 from telebot import types
 
@@ -74,4 +75,31 @@ def category_buttons(product_requiring_category, context):
             callback_data=f"categ_cr, prod:{product_requiring_category}")
         markup.add(category_creation)
         logger.debug(f"markup.to_dict {markup.to_dict()}")
+    return markup
+
+
+def keyboard_main_menu():
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    keyboard.add(types.KeyboardButton("📥 Upload new receipt"))
+    keyboard.add(types.KeyboardButton("🧾 View my receipts"))
+    keyboard.add(types.KeyboardButton("💰 View my expenses"))
+    return keyboard
+
+
+def receipt_buttons():
+    logger.info("Starting to form the receipt buttons")
+    today = datetime.date.today()
+    logger.info(f"today = {today}")
+    three_days_ago = today - datetime.timedelta(days=3)
+    week_ago = today - datetime.timedelta(weeks=1)
+    markup = types.InlineKeyboardMarkup()
+    buttons_in_a_row = []
+    buttons_in_a_row.append(types.InlineKeyboardButton(("for 1 day"), 
+            callback_data=f"receipt:created_at={today}"))
+    buttons_in_a_row.append(types.InlineKeyboardButton(("for 3 days"), 
+            callback_data=f"receipt:created_at__range={three_days_ago},{datetime.date.today()}"))
+    buttons_in_a_row.append(types.InlineKeyboardButton(("for the week"), 
+            callback_data=f"receipt:created_at__range={week_ago},{datetime.date.today()}"))
+    markup.add(*buttons_in_a_row)
+    logger.debug(f"markup.to_dict {markup.to_dict()}")
     return markup
