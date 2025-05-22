@@ -319,11 +319,11 @@ def collecting_data_and_post_item(message):
     if False in statuses:
         bot.send_message(
             message.chat.id,
-            messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
+            messages.UNSUCCESSFUL_UPLOAD_EXPENSE)
     else:
         bot.send_message(
             context.chat_id,
-            messages.SUCCESSFUL_UPLOAD_EXPENCE)
+            messages.SUCCESSFUL_UPLOAD_EXPENSE)
         _, expense_info = get_data_info("expense", context.expense_id)
         context.expense_id = None
         logger.info(f"expense info = {expense_info}")
@@ -332,15 +332,16 @@ def collecting_data_and_post_item(message):
 
 
 def get_receipt_data(message, receipt_period):
-    status, product_info = get_filtrated_info("expense", "user__chat_id",  message.chat.id, receipt_period)
+    status, product_info = get_filtrated_info("expense", "user__chat_id",  message.chat.id, period=receipt_period)
     if not status:
         bot.send_message(
             message.chat.id,
-            messages.UNSUCCESSFUL_EXPENCE_REQUEST)
+            messages.UNSUCCESSFUL_EXPENSE_REQUEST)
         return
     receipts = []
     for receipt in product_info:
         items = receipt["items"]
+        logger.info(f"items = {items}")
         products = ""
         for item in items:
             float_price = int_to_float_str(item["price"])
@@ -348,3 +349,40 @@ def get_receipt_data(message, receipt_period):
         products = products.rstrip("\n")
         receipts.append(products)
     return receipts
+
+
+def get_expense_category_data(message, receipt_period):
+    status, categories_sum = get_filtrated_info(
+        "expense_item/category_sums",
+        "chat_id",
+        message.chat.id,
+        period=receipt_period
+    )
+    if not status:
+        bot.send_message(
+            message.chat.id,
+            messages.UNSUCCESSFUL_EXPENSE_REQUEST)
+        return
+    return categories_sum
+
+
+def get_expense_data(message, category, receipt_period):
+    category_parametr = "category=" + category
+    receipt_period_paranetr = "created_at__range=" + receipt_period
+    logger.info(f"category_parametr = {category_parametr}")
+    status, expenses_info = get_filtrated_info(
+        "expense_item",
+        "chat_id",
+        message.chat.id,
+        category=category_parametr,
+        period=receipt_period_paranetr)
+    if not status:
+        return False, None
+    logger.info(f"expenses = {expenses_info}")
+    products = ""
+    for expense in expenses_info:
+        float_price = int_to_float_str(expense["price"])
+        products += f"{expense["product"]}: {float_price} €\n"
+    products = products.rstrip("\n")
+    logger.info(f"products = {products}")
+    return True, products

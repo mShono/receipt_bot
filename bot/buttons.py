@@ -1,6 +1,7 @@
 import logging
 import datetime
 
+from dateutil.relativedelta import relativedelta
 from telebot import types
 
 from . import state
@@ -86,20 +87,82 @@ def keyboard_main_menu():
     return keyboard
 
 
-def receipt_buttons():
-    logger.info("Starting to form the receipt buttons")
+def submenu_buttons(button_type):
+    logger.info(f"Starting to form the {button_type} buttons")
     today = datetime.date.today()
-    logger.info(f"today = {today}")
     three_days_ago = today - datetime.timedelta(days=3)
     week_ago = today - datetime.timedelta(weeks=1)
     markup = types.InlineKeyboardMarkup()
+    row_1 = [
+        types.InlineKeyboardButton(
+            ("for 1 day"), callback_data=f"{button_type}:created_at={today}"
+        ),
+        types.InlineKeyboardButton(
+            ("for 3 days"), callback_data=f"{button_type}:created_at__range={three_days_ago},{datetime.date.today()}"
+        ),
+        types.InlineKeyboardButton(
+            ("for the week"), callback_data=f"{button_type}:created_at__range={week_ago},{datetime.date.today()}"
+        )
+    ]
+    markup.add(*row_1)
+    logger.debug(f"markup after days: {markup.to_dict()}")
+    if button_type == "expense":
+        one_month = today - relativedelta(months=1)
+        three_months = today - relativedelta(months=3)
+        six_months = today - relativedelta(months=6)
+        one_year = today - relativedelta(years=1)
+        row_2 = [
+            types.InlineKeyboardButton(
+                ("for the month"), callback_data=f"{button_type}:created_at={one_month}"
+            ),
+            types.InlineKeyboardButton(
+                ("for 3 months"), callback_data=f"{button_type}:created_at__range={three_months},{datetime.date.today()}"
+            ),
+            types.InlineKeyboardButton(
+                ("for 6 months"), callback_data=f"{button_type}:created_at__range={six_months},{datetime.date.today()}"
+            )
+        ]
+        markup.add(*row_2)
+        row_3 = [
+            types.InlineKeyboardButton(
+                ("for the year"), callback_data=f"{button_type}:created_at__range={one_year},{datetime.date.today()}"
+            ),
+            types.InlineKeyboardButton(
+                ("for all time"), callback_data=f"{button_type}:")
+        ]
+        markup.add(*row_3)
+    logger.debug(f"markup after year: {markup.to_dict()}")
+    return markup
+
+def category_sum_buttons(categories_sum, receipt_period, context):
+    logger.info("Starting to form the categories_sum buttons")
+    markup = types.InlineKeyboardMarkup()
     buttons_in_a_row = []
-    buttons_in_a_row.append(types.InlineKeyboardButton(("for 1 day"), 
-            callback_data=f"receipt:created_at={today}"))
-    buttons_in_a_row.append(types.InlineKeyboardButton(("for 3 days"), 
-            callback_data=f"receipt:created_at__range={three_days_ago},{datetime.date.today()}"))
-    buttons_in_a_row.append(types.InlineKeyboardButton(("for the week"), 
-            callback_data=f"receipt:created_at__range={week_ago},{datetime.date.today()}"))
-    markup.add(*buttons_in_a_row)
-    logger.debug(f"markup.to_dict {markup.to_dict()}")
+    len_buttons_list = len(categories_sum)
+    for category_sum in categories_sum:
+        logger.info(f"category_sum = {category_sum}")
+        total_price_float = int_to_float_str(category_sum["total_price"])
+        category_sum["total_price"] = total_price_float
+        category_id = None
+        for category_with_id in context.existing_categories_with_id:
+            if category_with_id["name"] == category_sum["category"]:
+                category_id = category_with_id['id']
+                break
+        callback_data = f'categ_sum:{category_id},{receipt_period}'
+        logger.info(f"callback_data = {callback_data}")
+        logger.info(f"len(callback_data) should be less then 64: {len(callback_data)}")
+        # buttons_in_a_row.append(types.InlineKeyboardButton(
+        #     f"{category_sum['category']}: {category_sum['total_price']} €",
+        #     callback_data=f'categ_sum:category={category_id},range={receipt_period}')
+        # )
+        buttons_in_a_row.append(types.InlineKeyboardButton(
+            f"{category_sum['category']}: {category_sum['total_price']} €",
+            callback_data=callback_data)
+        )
+        if len(buttons_in_a_row) == 2:
+            markup.row(*buttons_in_a_row)
+            buttons_in_a_row = []
+        elif (len(buttons_in_a_row) == 1) and (len_buttons_list == 1):
+            markup.add(*buttons_in_a_row)
+        len_buttons_list -= 1
     return markup

@@ -55,12 +55,15 @@ SUCCESSFUL_PRICE_UPDATE = "Price for \"{product}\" updated to {price}. "\
 # Post the poduct
 UNSUCCESSFUL_PPRODUCT_CREATION = "Something went wrong while posting new product \"{product_name}\". Please, try again:"
 # Receipt uploading to database
-UPLOAD_EXPENCE = "Uploading receipt to database"
-SUCCESSFUL_UPLOAD_EXPENCE = "Your receipt was successfully uploaded to database! ✅"
-UNSUCCESSFUL_UPLOAD_EXPENCE = "Unfortunately, we were unable to upload your receipt right now 😔"
+UPLOAD_EXPENSE = "Uploading receipt to database"
+SUCCESSFUL_UPLOAD_EXPENSE = "Your receipt was successfully uploaded to database! ✅"
+UNSUCCESSFUL_UPLOAD_EXPENSE = "Unfortunately, we were unable to upload your receipt right now 😔"
 # Receipt receiving from database
-UNSUCCESSFUL_EXPENCE_REQUEST = "Unfortunately, we were unable to receive your receipts right now 😔"
+UNSUCCESSFUL_EXPENSE_REQUEST = "Unfortunately, we were unable to receive your receipts right now 😔"
 NO_RECEIPTS = "There're no receipts for the requested period"
+# Expense receiving from database
+NO_EXPENSES = "There're no expenses for the requested period"
+EXPENSES_BY_CATEGORIES = "Expenses by categories"
 # Error messages
 UNEXPECTED_ERROR = "Sorry, an unexpected error has occurred 🤷‍♂️"
 # Keyboard messages
