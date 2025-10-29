@@ -46,6 +46,48 @@ def get_data_info(endpoint, data):
         raise e
 
 
+def get_filtrated_info(endpoint, search_field, data, **kwargs):
+    category = kwargs.get("category")
+    period = kwargs.get("period")
+    logger.info(f"Checking the existance of the {endpoint} filter \"{search_field}\" \"{data}\" in the database for category {category} period {period}")
+    response = None
+    try:
+        if period and not category:
+            logger.info(f"There's {period} without category in request")
+            response = requests.get(f"{DJANGO_API_URL}{endpoint}/?{search_field}={data}&{period}", headers=headers)
+        elif period and category:
+            logger.info(f"There's category = {category} and period = {period} in request")
+            response = requests.get(f"{DJANGO_API_URL}{endpoint}/?{search_field}={data}&{category}&{period}", headers=headers)
+        else:
+            logger.info(f"There's nor period nor category in request")
+            response = requests.get(f"{DJANGO_API_URL}{endpoint}/?{search_field}={data}", headers=headers)
+        response.raise_for_status()
+    except Exception as e:
+        logger.error(f"Reading the json file with {endpoint} failed: {e}")
+        if response is not None:
+            response_saving(RESPONSE_FOLDER, f"{endpoint}_get_data", response.text)
+        # raise e
+        return False, None
+    try:
+        if response.status_code == 200:
+            logger.info(f"\"{data}\" is in the database")
+            data_info = json.loads(response.text)
+            logger.info(f"data_info = {data_info}")
+            return True, data_info
+        elif response.status_code == 404:
+            logger.info(f"\"{data}\" is not in the database")
+            return False, None
+        else:
+            logger.info(f"Received an unpredictable response from Django database: {response.status_code}")
+            response_saving(RESPONSE_FOLDER, f"{endpoint}_get_data", response.text)
+            return False, None
+    except Exception as e:
+        logger.error(f"Reading the json file with {endpoint} failed: {e}")
+        if response is not None:
+            response_saving(RESPONSE_FOLDER, f"{endpoint}_get_data", response.text)
+        raise e
+
+
 def check_existent_categories(context):
     logger.info("Checking the categories existing in the database")
     try:

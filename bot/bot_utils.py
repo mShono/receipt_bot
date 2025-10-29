@@ -2,15 +2,18 @@ import logging
 
 import os
 from dotenv import load_dotenv
+import json
 import requests
 
 from telebot import TeleBot, types
 
+
 from . import messages
 from . import state
-from .buttons import price_name_buttons, category_buttons
-from .conversions import float_to_int
-from .django_interaction import get_data_info, check_existent_categories, post_data_info
+from .buttons import price_name_buttons, category_buttons, keyboard_main_menu
+from .conversions import float_to_int, int_to_float_str
+from .db_requests import get_data_info_db, check_existent_categories_db, post_data_info_db, get_filtrated_info_db
+from .django_interaction import get_data_info, check_existent_categories, post_data_info, get_filtrated_info
 from .file_operations import file_opening
 from .messages import send_reply_markup_message
 
@@ -25,7 +28,7 @@ headers = {
 }
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 
 
@@ -130,10 +133,12 @@ def process_name_edit(message, editted_list_position):
         if list_position == editted_list_position:
             list_position["name"] = message.text
     logger.info(f"Updated {old_name} to {editted_list_position["name"]}")
-    status, _ = get_data_info("product", message.text)
+    # status, _ = get_data_info("product", message.text)
+    status, _ = get_data_info_db("product", message.text)
 
     if not status:
-        check_existent_categories(context)
+        # check_existent_categories(context)
+        check_existent_categories_db(context)
         send_reply_markup_message(
             message.chat,
             messages.PPODUCT_MISSING_IN_DATABASE,
@@ -173,7 +178,8 @@ def collecting_data_to_get_products(filepath, context):
             return
         integer_price = float_to_int(price)
         list_position["price"] = integer_price
-        status, product_info = get_data_info("product", product_name)
+        # status, product_info = get_data_info("product", product_name)
+        status, product_info = get_data_info_db("product", product_name)
         if status == True:
             list_position["id"] = product_info["id"]
             products_present_in_database.append(list_position)
@@ -189,7 +195,8 @@ def post_category_product(message, product_name):
     logger.info(f"For the product \"{product_name}\" the user set the following category \"{message.text}\".")
 
     try:
-        post_category_status, new_category_id = post_data_info("category", {"name": f"{message.text}"})
+        # post_category_status, new_category_id = post_data_info("category", {"name": f"{message.text}"})
+        post_category_status, new_category_id = post_data_info_db("category", {"name": f"{message.text}"})
         if not post_category_status:
             messages.send_error_message(message, product_name, context, "category")
             return
@@ -226,19 +233,27 @@ def post_category_product(message, product_name):
 
 
 def get_category_id(category_name, context):
+    logger.debug("I'm in get_category_id")
+    logger.debug(f"context.existing_categories_with_id = {context.existing_categories_with_id}")
     for category in context.existing_categories_with_id:
+        logger.debug(f"category_name = {category_name}")
+        logger.debug(f"category['name'] = {category["name"]}")
         if category["name"] == category_name:
             logger.info(f"Id for category \"{category["name"]}\" = {category["id"]}")
             return category["id"]
-        break
+            break
 
 
 def collecting_data_and_post_user(message):
-    get_user_status, user_info = get_data_info("users", message.chat.username)
+    # get_user_status, user_info = get_data_info("users", message.chat.username) # change for "user" for sqlite db
+    get_user_status, user_info = get_data_info_db("user", message.chat.username)
+    logger.debug(f"message.chat.id = {message.chat.id}")
     if get_user_status:
         logger.info(f"type_user_info = {type(user_info)}")
         return get_user_status, user_info
+
     else:
+        logger.debug(f"message.chat.id in else= {message.chat.id}")
         user_info = {
             "chat_id": message.chat.id,
             "username": message.chat.username,
@@ -246,7 +261,8 @@ def collecting_data_and_post_user(message):
             "last_name": message.chat.last_name,
         }
         logger.info(f"Information has been collected, user_info = {user_info}")
-        post_user_status, user_info = post_data_info("users", user_info)
+        # post_user_status, user_info = post_data_info("users", user_info)  # change for "user" for sqlite db
+        post_user_status, user_info = post_data_info_db("user", user_info)
         return post_user_status, user_info
 
 
@@ -254,7 +270,9 @@ def collecting_data_and_post_expense(message):
     context = state.UserContext[message.chat.id]
     expense_dict = {}
     if not context.new_expense:
-        get_user_info_status, user_info = get_data_info("users", message.chat.username)
+        # get_user_info_status, user_info = get_data_info("users", message.chat.username) # change for "user" for sqlite db
+        get_user_info_status, user_info = get_data_info_db("user", message.chat.username)
+        logger.debug(f"get_user_info_status = {get_user_info_status}")
         if not get_user_info_status:
             post_user_status, user_id = collecting_data_and_post_user(message)
             if not post_user_status:
@@ -275,7 +293,8 @@ def collecting_data_and_post_expense(message):
     context.products_absent_in_database.clear()
     logger.info(f"new_expense = {context.new_expense}")
 
-    post_expense_status, expense_id = post_data_info("expense", expense_dict)
+    # post_expense_status, expense_id = post_data_info("expense", expense_dict)
+    post_expense_status, expense_id = post_data_info_db("expense", expense_dict)
     if not post_expense_status:
         return False, None
     context.expense_id = expense_id
@@ -301,14 +320,17 @@ def collecting_data_and_post_item(message):
     logger.info(f"context.new_expense = {context.new_expense}")
     while context.new_expense:
         item = context.new_expense.pop(0)
-        status, product_info = get_data_info("product", item["name"])
+        # status, product_info = get_data_info("product", item["name"])
+        status, product_info = get_data_info_db("product", item["name"])
         if status:
             item = collecting_expense_item_data(context, item, product_info)
-            post_item_status, _ = post_data_info("expense_item", item)
+            # post_item_status, _ = post_data_info("expense_item", item)
+            post_item_status, _ = post_data_info_db("expense_item", item)
             statuses.append(post_item_status)
         else:
             context.new_expense.insert(0, item)
-            check_existent_categories(context)
+            # check_existent_categories(context)
+            check_existent_categories_db(context)
             messages.send_reply_markup_message(
                 message.chat,
                 messages.PPODUCT_MISSING_IN_DATABASE,
@@ -319,11 +341,73 @@ def collecting_data_and_post_item(message):
     if False in statuses:
         bot.send_message(
             message.chat.id,
-            messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
+            messages.UNSUCCESSFUL_UPLOAD_EXPENSE)
     else:
         bot.send_message(
             context.chat_id,
-            messages.SUCCESSFUL_UPLOAD_EXPENCE)
-        _, expense_info = get_data_info("expense", context.expense_id)
+            messages.SUCCESSFUL_UPLOAD_EXPENSE)
+        # _, expense_info = get_data_info("expense", context.expense_id)
+        _, expense_info = get_data_info_db("expense", context.expense_id)
         context.expense_id = None
         logger.info(f"expense info = {expense_info}")
+        keyboard = keyboard_main_menu()
+        logger.debug("reply_markup type=%s callable=%s repr=%r",
+             type(keyboard), callable(keyboard), keyboard)
+        bot.send_message(context.chat_id, messages.BUTTON_SUGGESTION, reply_markup=keyboard)
+
+
+def get_receipt_data(message, receipt_period):
+    status, product_info = get_filtrated_info("expense", "user__chat_id",  message.chat.id, period=receipt_period)
+    if not status:
+        bot.send_message(
+            message.chat.id,
+            messages.UNSUCCESSFUL_EXPENSE_REQUEST)
+        return
+    receipts = []
+    for receipt in product_info:
+        items = receipt["items"]
+        logger.info(f"items = {items}")
+        products = ""
+        for item in items:
+            float_price = int_to_float_str(item["price"])
+            products += f"{item["product"]}: {float_price} €\n"
+        products = products.rstrip("\n")
+        receipts.append(products)
+    return receipts
+
+
+def get_expense_category_data(message, receipt_period):
+    status, categories_sum = get_filtrated_info(
+        "expense_item/category_sums",
+        "chat_id",
+        message.chat.id,
+        period=receipt_period
+    )
+    if not status:
+        bot.send_message(
+            message.chat.id,
+            messages.UNSUCCESSFUL_EXPENSE_REQUEST)
+        return
+    return categories_sum
+
+
+def get_expense_data(message, category, receipt_period):
+    category_parametr = "category=" + category
+    receipt_period_paranetr = "created_at__range=" + receipt_period
+    logger.info(f"category_parametr = {category_parametr}")
+    status, expenses_info = get_filtrated_info(
+        "expense_item",
+        "chat_id",
+        message.chat.id,
+        category=category_parametr,
+        period=receipt_period_paranetr)
+    if not status:
+        return False, None
+    logger.info(f"expenses = {expenses_info}")
+    products = ""
+    for expense in expenses_info:
+        float_price = int_to_float_str(expense["price"])
+        products += f"{expense["product"]}: {float_price} €\n"
+    products = products.rstrip("\n")
+    logger.info(f"products = {products}")
+    return True, products

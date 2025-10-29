@@ -14,7 +14,7 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("pk", "name")
+    list_display = ("pk", "name", "category")
     list_display_links = ("name",)
     search_fields = ("name",)
     empty_value_display = "-пусто-"
@@ -36,12 +36,23 @@ class UserAdmin(admin.ModelAdmin):
     empty_value_display = "-пусто-"
 
 
+class ExpenseItemInline(admin.TabularInline):
+    model = ExpenseItem
+    extra = 0
+    readonly_fields = ("product", "price", "get_category")
+
+    def get_category(self, obj):
+        return obj.product.category if obj.product else "-"
+    get_category.short_description = "Category"
+
+
 @admin.register(Expense)
 class ExpenseAdmin(admin.ModelAdmin):
     list_display = ("pk", "user", "currency", "created_at")
     list_display_links = ("pk",)
-    search_fields = ("name",)
+    search_fields = ("user__username",)
     empty_value_display = "-пусто-"
+    inlines = [ExpenseItemInline]
 
 
 @admin.register(ExpenseItem)

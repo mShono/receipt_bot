@@ -8,12 +8,13 @@ from telebot import TeleBot, types
 
 from . import messages
 from . import state
-from .bot_utils import process_price_edit, process_name_edit, post_category_product, get_category_id, collecting_data_and_post_expense, collecting_data_to_get_products, collecting_data_and_post_item, collecting_data_and_post_user
-from .buttons import price_name_buttons
-from .django_interaction import post_data_info
+from .bot_utils import process_price_edit, process_name_edit, post_category_product, get_category_id, collecting_data_and_post_expense, collecting_data_to_get_products, collecting_data_and_post_item, collecting_data_and_post_user, get_receipt_data, get_expense_category_data, get_expense_data
+from .buttons import price_name_buttons, keyboard_main_menu, submenu_buttons, category_sum_buttons
+from .db_requests import get_data_info_db, check_existent_categories_db, post_data_info_db, get_filtrated_info_db
+from .django_interaction import post_data_info, check_existent_categories
 from .file_operations import file_saving
 from .messages import send_reply_markup_message
-from .receipt_recognition import recognition_ocr_mini, recognition_turbo
+from .receipt_recognition import recognition_ocr_mini, recognition_turbo, recognition_image_turbo
 
 
 # settings.configure()
@@ -38,7 +39,7 @@ user_info = {}
 logging.basicConfig(level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 logging.getLogger("openai").setLevel(logging.INFO)
 logging.getLogger("urllib3").setLevel(logging.INFO)
@@ -50,13 +51,14 @@ logger.info("Receipt_bot launched")
 def wake_up(message):
     chat = message.chat
     markup = types.InlineKeyboardMarkup()
-    # register_url_button = types.InlineKeyboardButton("Register", url="https://ya.ru")
     register_callback_button = types.InlineKeyboardButton("Register", callback_data="Register")
     markup.add(register_callback_button)
     bot.send_message(
         chat_id=chat.id,
         text=messages.INVITATION_TO_REGISTER,
         reply_markup=markup)
+    keyboard = keyboard_main_menu()
+    bot.send_message(chat_id=chat.id, text=messages.BUTTON_SUGGESTION, reply_markup=keyboard)
     logger.info("Invitation for registration sent")
 
 
@@ -130,12 +132,12 @@ def callback_nothing_after_present(call):
     else:
         bot.send_message(
             call.message.chat.id,
-            messages.UPLOAD_EXPENCE)
+            messages.UPLOAD_EXPENSE)
         post_expense_status, _ = collecting_data_and_post_expense(call.message)
         if not post_expense_status:
             bot.send_message(
                 call.message.chat.id,
-                messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
+                messages.UNSUCCESSFUL_UPLOAD_EXPENSE)
             return
         collecting_data_and_post_item(call.message)
 
@@ -144,12 +146,12 @@ def callback_nothing_after_present(call):
 def callback_nothing_after_absent(call):
     bot.send_message(
         call.message.chat.id,
-        messages.UPLOAD_EXPENCE)
+        messages.UPLOAD_EXPENSE)
     post_expense_status, _ = collecting_data_and_post_expense(call.message)
     if not post_expense_status:
         bot.send_message(
             call.message.chat.id,
-            messages.UNSUCCESSFUL_UPLOAD_EXPENCE)
+            messages.UNSUCCESSFUL_UPLOAD_EXPENSE)
         return
 
     collecting_data_and_post_item(call.message)
@@ -173,7 +175,8 @@ def callback_existing_category(call):
     logger.info(f"The user assigns the category \"{category_name}\" for the following product: \"{product_name}\"")
     category_id = get_category_id(category_name, context)
     logger.debug(f"posting data info from exist_cat")
-    status, _ = post_data_info("product", {"name": f"{product_name}", "category": category_id})
+    # status, _ = post_data_info("product", {"name": f"{product_name}", "category": category_id})
+    status, _ = post_data_info_db("product", {"name": f"{product_name}", "category": category_id})
     if status:
         if context.stage == "new_expense":
             send_reply_markup_message(
@@ -219,6 +222,96 @@ def callback_upload_receipt(call):
             call.message.chat.id,
             messages.UPLOAD_RECEIRT)
     logger.info("Asked for receipt uploading")
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("receipt"))
+def callback_receipt_handler(call):
+    try:
+        _, receipt_period = call.data.split(":", 1)
+    except Exception as e:
+        logger.error(f"Error parsing callback_data: {call.data} - {e}")
+        return
+
+    receipts = get_receipt_data(call.message, receipt_period)
+    if not receipts:
+        bot.send_message(
+            call.message.chat.id,
+            messages.NO_RECEIPTS)
+        logger.info("There're no receipts for the requested period")
+    for receipt in receipts:
+        logger.info(f"receipt = {receipt}")
+        bot.send_message(
+            call.message.chat.id,
+            receipt)
+    logger.info("Showed the user his receipts")
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("expense"))
+def callback_expense_handler(call):
+    try:
+        _, receipt_period_parametr = call.data.split(":", 1)
+    except Exception as e:
+        logger.error(f"Error parsing callback_data: {call.data} - {e}")
+        return
+
+    categories_sum = get_expense_category_data(call.message, receipt_period_parametr)
+    if not categories_sum:
+        bot.send_message(
+            call.message.chat.id,
+            messages.NO_EXPENSES)
+        logger.info("There're no expenses for the requested period")
+        # Это сообщение выдаётся вместе с 
+        # Unfortunately, we were unable to receive your receipts right now 😔
+        # Потому что в get_expense_category_data после этого сообщения стоит return
+        return
+
+    context = state.Context()
+    context.chat_id = call.message.chat.id
+    state.UserContext[call.message.chat.id] = context
+    check_existent_categories(context)
+
+    try:
+        _, receipt_period = receipt_period_parametr.split("=", 1)
+    except Exception as e:
+        logger.error(f"Error parsing callback_data: {call.data} - {e}")
+        return
+
+    markup = category_sum_buttons(categories_sum, receipt_period, context)
+    send_reply_markup_message(
+        call.message.chat,
+        messages.EXPENSES_BY_CATEGORIES,
+        markup,
+    )
+    logger.info("Showed the user his expenses by categories")
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("categ_sum"))
+def callback_category_expense_handler(call):
+    try:
+        category_info, receipt_period = call.data.split(",", 1)
+        logger.info(f"category_info = {category_info}")
+        logger.info(f"range_info = {receipt_period}")
+    except Exception as e:
+        logger.error(f"Error parsing callback_data: {call.data} - {e}")
+        return
+    try:
+        _, category = category_info.split(":", 1)
+        # _, receipt_period = range_info.split("=", 1)
+    except Exception as e:
+        logger.error(f"Error parsing callback_data: {category_info}, {receipt_period} - {e}")
+        return
+
+    status, products = get_expense_data(call.message, category, receipt_period)
+    if not status:
+        bot.send_message(
+            call.message.chat.id,
+            messages.UNSUCCESSFUL_EXPENSE_REQUEST)
+        return
+    bot.send_message(
+        call.message.chat.id,
+        products)
+    logger.info("Showed the user his expenses by category for the requested period")
+
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -301,7 +394,21 @@ def handle_receipt_photo(message):
             messages.UNSUCCESSFUL_RECEIPT_UPLOADING)
         logger.info("Unsuccessful receipt uploading message sent")
     # recognition_ocr_mini(file_name)
-    # filepath = recognition_turbo(file_name)
+
+    # filepath = recognition_image_turbo(file_name)
+
+    # try:
+    #     text = recognition_ocr_mini(file_name)
+    #     filepath = recognition_turbo(text, file_name)
+    # except Exception as e:
+    #     bot.send_message(
+    #         message.chat.id,
+    #         messages.UNSUCCESSFUL_RECOGNITION
+    #     )
+    #     logger.info("Sent the message that we were unable to recognize any products in the receipt")
+    #     logger.info("An exception occured during the file recognition")
+    #     logger.exception(file_name)
+    #     return
     filepath = "/home/masher/development/receipt_bot/uploaded_receipts/382807642_receipt_product_ai.json"
     # filepath = "/home/masher/development/receipt_bot/uploaded_receipts/test_unrecognised_receipt.json"
     collecting_data_to_get_products(filepath, context)
@@ -333,6 +440,27 @@ def handle_receipt_photo(message):
         return
 
 
+@bot.message_handler(content_types=["text"], func = lambda msg: msg.text=="📥 Upload new receipt")
+def menu_handler(message):
+    bot.send_message(
+        message.chat.id,
+        messages.UPLOAD_RECEIRT)
+    logger.info("Asked for receipt uploading")
+
+
+@bot.message_handler(content_types=["text"], func = lambda msg: msg.text=="🧾 View my receipts")
+def menu_handler(message):
+    markup = submenu_buttons("receipt")
+    bot.send_message(message.chat.id, text=messages.BUTTON_SUGGESTION, reply_markup=markup)
+    logger.info("Showed the user his receipt buttons")
+
+
+@bot.message_handler(content_types=["text"], func = lambda msg: msg.text=="💰 View my expenses")
+def menu_handler(message):
+    markup = submenu_buttons("expense")
+    bot.send_message(message.chat.id, text=messages.BUTTON_SUGGESTION, reply_markup=markup)
+    logger.info("Showed the user his expense buttons")
+
 
 @bot.message_handler(content_types=["text"])
 def unknown_message_answer(message):
@@ -340,7 +468,7 @@ def unknown_message_answer(message):
     bot.reply_to(message, text=messages.UNRECOGNIZED_MESSAGE_REPLY)
     logger.info("An unrecoginzed message reply sent")
 
-# bot.polling()
+
 
 if __name__ == "__main__":
     bot.polling()

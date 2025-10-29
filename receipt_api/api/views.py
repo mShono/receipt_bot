@@ -1,13 +1,17 @@
+from django.db.models import Sum
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+from .filters import ExpenseItemFilter, PhraseSearchFilter
 from .mixins import NotFoundListMixin
 from .models import (Category, Product, Currency, User,
                            Expense, ExpenseItem)
 from .serializers import (CategorySerializer, ProductSerializer,
                           CurrencySerializer, UserSerializer,
                           ExpenseSerializer, ExpenseItemSerializer)
+
 
 class CategoryViewSet(ModelViewSet):
 
@@ -19,28 +23,9 @@ class ProductViewSet(NotFoundListMixin, ModelViewSet):
 
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
-    filter_backends = (filters.SearchFilter,)
+    # filter_backends = (filters.SearchFilter,)
+    filter_backends = (PhraseSearchFilter,)
     search_fields = ('=name',) 
-
-
-    # def list(self, request, *args, **kwargs):
-    #     """Redefining the list function so that it returns status.HTTP_404_NOT_FOUND"""
-
-    #     queryset = self.filter_queryset(self.get_queryset())
-
-    #     if not queryset.exists():
-    #         return Response(
-    #             {"detail": "Not found"},
-    #             status=status.HTTP_404_NOT_FOUND
-    #         )
-
-    #     page = self.paginate_queryset(queryset)
-    #     if page is not None:
-    #         serializer = self.get_serializer(page, many=True)
-    #         return self.get_paginated_response(serializer.data)
-
-    #     serializer = self.get_serializer(queryset, many=True)
-    #     return Response(serializer.data)
 
 
 class CurrencyViewSet(ModelViewSet):
@@ -61,11 +46,40 @@ class ExpenseViewSet(ModelViewSet):
 
     queryset = Expense.objects.all()
     serializer_class = ExpenseSerializer
+    filter_backends = (filters.SearchFilter, DjangoFilterBackend,)
+    filterset_fields = {
+        "user__chat_id": ["exact"],
+        "created_at": ["exact", "range",],
+    }
+    search_fields = ('=user__chat_id', '=id',)
 
 
 class ExpenseItemViewSet(NotFoundListMixin, ModelViewSet):
 
     queryset = ExpenseItem.objects.all()
     serializer_class = ExpenseItemSerializer
-    filter_backends = (filters.SearchFilter,)
-    search_fields = ('=id',) 
+    filter_backends = (filters.SearchFilter, DjangoFilterBackend,)
+    filterset_class = ExpenseItemFilter
+    search_fields = ('=id',)
+
+    @action(
+        ["get"],
+        detail=False,
+        url_path="category_sums",
+    )
+    def category_sums(self, request):
+        """Returns the sum of prices for each category"""
+        queryset = self.filter_queryset(self.get_queryset())
+
+        data = (
+            queryset
+            .values('product__category__name')
+            .annotate(total_price=Sum('price'))
+            .order_by('product__category__name')
+        )
+
+        result = []
+        for row in data:
+            result.append({'category': row['product__category__name'], 'total_price': row['total_price']})
+        
+        return Response(result)
