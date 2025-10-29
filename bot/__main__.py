@@ -10,10 +10,11 @@ from . import messages
 from . import state
 from .bot_utils import process_price_edit, process_name_edit, post_category_product, get_category_id, collecting_data_and_post_expense, collecting_data_to_get_products, collecting_data_and_post_item, collecting_data_and_post_user, get_receipt_data, get_expense_category_data, get_expense_data
 from .buttons import price_name_buttons, keyboard_main_menu, submenu_buttons, category_sum_buttons
+from .db_requests import get_data_info_db, check_existent_categories_db, post_data_info_db, get_filtrated_info_db
 from .django_interaction import post_data_info, check_existent_categories
 from .file_operations import file_saving
 from .messages import send_reply_markup_message
-from .receipt_recognition import recognition_ocr_mini, recognition_turbo
+from .receipt_recognition import recognition_ocr_mini, recognition_turbo, recognition_image_turbo
 
 
 # settings.configure()
@@ -38,7 +39,7 @@ user_info = {}
 logging.basicConfig(level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 logging.getLogger("openai").setLevel(logging.INFO)
 logging.getLogger("urllib3").setLevel(logging.INFO)
@@ -174,7 +175,8 @@ def callback_existing_category(call):
     logger.info(f"The user assigns the category \"{category_name}\" for the following product: \"{product_name}\"")
     category_id = get_category_id(category_name, context)
     logger.debug(f"posting data info from exist_cat")
-    status, _ = post_data_info("product", {"name": f"{product_name}", "category": category_id})
+    # status, _ = post_data_info("product", {"name": f"{product_name}", "category": category_id})
+    status, _ = post_data_info_db("product", {"name": f"{product_name}", "category": category_id})
     if status:
         if context.stage == "new_expense":
             send_reply_markup_message(
@@ -392,7 +394,21 @@ def handle_receipt_photo(message):
             messages.UNSUCCESSFUL_RECEIPT_UPLOADING)
         logger.info("Unsuccessful receipt uploading message sent")
     # recognition_ocr_mini(file_name)
-    # filepath = recognition_turbo(file_name)
+
+    # filepath = recognition_image_turbo(file_name)
+
+    # try:
+    #     text = recognition_ocr_mini(file_name)
+    #     filepath = recognition_turbo(text, file_name)
+    # except Exception as e:
+    #     bot.send_message(
+    #         message.chat.id,
+    #         messages.UNSUCCESSFUL_RECOGNITION
+    #     )
+    #     logger.info("Sent the message that we were unable to recognize any products in the receipt")
+    #     logger.info("An exception occured during the file recognition")
+    #     logger.exception(file_name)
+    #     return
     filepath = "/home/masher/development/receipt_bot/uploaded_receipts/382807642_receipt_product_ai.json"
     # filepath = "/home/masher/development/receipt_bot/uploaded_receipts/test_unrecognised_receipt.json"
     collecting_data_to_get_products(filepath, context)

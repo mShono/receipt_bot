@@ -13,7 +13,7 @@ TESSDATA_PREFIX = "/usr/share/tesseract-ocr/5/tessdata/"
 UPLOAD_FOLDER = "uploaded_receipts"
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 
 def receipt_ocr(image):
@@ -40,7 +40,9 @@ def recognition_ocr_mini(file_name):
         logger.error(f"Image opening error: {e}")
         return None
     text = receipt_ocr(image)
-    file_saving(UPLOAD_FOLDER, file_name, text, "w", "ocr")
+    # file_saving(UPLOAD_FOLDER, file_name, text, "w", "ocr")
+    filepath = file_saving(UPLOAD_FOLDER, file_name, text, "w", "ocr")
+    return text
 
     # json_text = open_ai_request(text)
     # file_saving(UPLOAD_FOLDER, file_name, json_text, "w", "ai")
@@ -48,13 +50,30 @@ def recognition_ocr_mini(file_name):
 
 def check_openai_response(text):
     logger.info("Сhecking if AI has recognized the image")
+    if not text:
+        return None
     lines = text.splitlines()
 
+    # try:
+    #     if lines and lines[1]:
+    #         lines = lines[1:]
+    #         logger.info("Image recognition was successful")
+    #         return "\n".join(lines)
     try:
-        if lines and lines[1]:
-            lines = lines[1:]
-            logger.info("Image recognition was successful")
-            return "\n".join(lines)
+        start = None
+        for i in range(1, len(lines)):
+            if lines[i].strip():
+                start = i
+                break
+
+        if start is None:
+            # ничего полезного после первой строки
+            logger.info("AI returned only header/empty lines")
+            return None
+
+        result = "\n".join(lines[start:])
+        logger.info("Image recognition was successful")
+        return result
 
     except Exception as e:
         logger.error(f"Text splitting for lines error: {e}")
@@ -69,14 +88,15 @@ def clean_openai_response(text):
         lines = lines[1:]
     else:
         logger.info("There were no markers in AI response")
-        return None
+        return text
 
     if lines and lines[-1].strip() == "```":
         lines = lines[:-1]
     return "\n".join(lines)
 
 
-def recognition_turbo(file_name):
+def recognition_image_turbo(file_name):
+    """Image recognition"""
     filepath = os.path.join(UPLOAD_FOLDER, f"{file_name}.jpg")
     try:
         logger.info(f"Opening image from: {filepath}")
@@ -96,4 +116,13 @@ def recognition_turbo(file_name):
         json_text = product_recognition_turbo(checked_recognized_image)
         cleaned_text = clean_openai_response(json_text)
         _, filepath = file_saving(UPLOAD_FOLDER, file_name, cleaned_text, "w", "product_ai")
+    return filepath
+
+def recognition_turbo(text, file_name):
+    """Text recognition"""
+    logger.info("Making the request to AI to find the products")
+    json_text = product_recognition_turbo(text)
+    logger.debug(f"json_text = {json_text}")
+    cleaned_text = clean_openai_response(json_text)
+    _, filepath = file_saving(UPLOAD_FOLDER, file_name, cleaned_text, "w", "product_ai")
     return filepath
