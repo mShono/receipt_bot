@@ -4,7 +4,7 @@ from rest_framework import filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from .filters import ExpenseItemFilter
+from .filters import ExpenseItemFilter, PhraseSearchFilter
 from .mixins import NotFoundListMixin
 from .models import (Category, Product, Currency, User,
                            Expense, ExpenseItem)
@@ -23,7 +23,8 @@ class ProductViewSet(NotFoundListMixin, ModelViewSet):
 
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
-    filter_backends = (filters.SearchFilter,)
+    # filter_backends = (filters.SearchFilter,)
+    filter_backends = (PhraseSearchFilter,)
     search_fields = ('=name',) 
 
 

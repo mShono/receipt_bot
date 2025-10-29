@@ -1,4 +1,5 @@
 import django_filters
+from rest_framework.filters import SearchFilter
 
 from .models import (ExpenseItem)
 
@@ -18,3 +19,11 @@ class ExpenseItemFilter(django_filters.FilterSet):
     class Meta:
         model = ExpenseItem
         fields = ['chat_id', 'category', 'created_at__range']
+
+
+class PhraseSearchFilter(SearchFilter):
+    def get_search_terms(self, request):
+        search_query = request.query_params.get(self.search_param, '')
+        if not search_query:
+            return []
+        return [search_query]
