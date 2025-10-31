@@ -10,7 +10,7 @@ from . import messages
 from . import state
 from .bot_utils import process_price_edit, process_name_edit, post_category_product, get_category_id, collecting_data_and_post_expense, collecting_data_to_get_products, collecting_data_and_post_item, collecting_data_and_post_user, get_receipt_data, get_expense_category_data, get_expense_data
 from .buttons import price_name_buttons, keyboard_main_menu, submenu_buttons, category_sum_buttons
-from .db_requests import get_data_info_db, check_existent_categories_db, post_data_info_db, get_filtrated_info_db
+from .db_requests import check_existent_categories_db, post_data_info_db
 from .django_interaction import post_data_info, check_existent_categories
 from .file_operations import file_saving
 from .messages import send_reply_markup_message
@@ -64,6 +64,9 @@ def wake_up(message):
 
 @bot.callback_query_handler(func=lambda call: call.data == "Register")
 def callback_register(call):
+    """Checking if the user is registered and if not - registering him.
+    Previous stage: "Register" button
+    Next stage: "Upload receipt" button"""
     message = call.message
     post_user_status, user_info = collecting_data_and_post_user(message)
     if not post_user_status:
@@ -89,6 +92,11 @@ def callback_register(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("price_edit_yes:"))
 def callback_price_edit(call):
+    """Process a 'Nothing_to_edit_after_PRESENT_IN_DATABASE' action,
+    present remaining unrecognized products, or finalize the expense upload.
+    Previous stage: products_present_in_database buttons
+    Next stage: products_absent_in_database edition or collecting_data_and_post_expense and collecting_data_and_post_item
+    """
     try:
         _, product_name = call.data.split(":", 1)
     except Exception as e:
@@ -117,6 +125,11 @@ def callback_price_edit(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("Nothing_to_edit_after_PRESENT_IN_DATABASE"))
 def callback_nothing_after_present(call):
+    """Process a 'Nothing_to_edit_after_PRESENT_IN_DATABASE' action,
+    present remaining unrecognized products, or finalize the expense upload.
+    Previous stage: products_present_in_database buttons
+    Next stage: products_absent_in_database edition or collecting_data_and_post_expense and collecting_data_and_post_item
+    """
     context = state.UserContext[call.message.chat.id]
     context.stage = "products_absent_in_database"
     logger.info(f"ABSENT_IN_DATABASE = {context.products_absent_in_database}")
@@ -144,6 +157,10 @@ def callback_nothing_after_present(call):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("Nothing_to_edit_after_ABSENT_IN_DATABASE"))
 def callback_nothing_after_absent(call):
+    """Process a 'Nothing_to_edit_after_ABSENT_IN_DATABASE' action, finalize the expense upload.
+    Previous stage: Nothing_to_edit_after_PRESENT_IN_DATABASE button
+    Next stage: collecting_data_and_post_expense and collecting_data_and_post_item
+    """
     bot.send_message(
         call.message.chat.id,
         messages.UPLOAD_EXPENSE)
@@ -268,7 +285,8 @@ def callback_expense_handler(call):
     context = state.Context()
     context.chat_id = call.message.chat.id
     state.UserContext[call.message.chat.id] = context
-    check_existent_categories(context)
+    # check_existent_categories(context)
+    check_existent_categories_db(context)
 
     try:
         _, receipt_period = receipt_period_parametr.split("=", 1)
@@ -316,7 +334,11 @@ def callback_category_expense_handler(call):
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
-
+    """Process inline callback queries by matching the pressed products_present_in_database button
+    or products_absent_in_database button to product entries.
+    Prompt the user to edit product names or prices and register the next-step handlers.
+    Previous stage: uploading the receipt
+    Next stage: process_price_edit, process_name_edit or Nothing_to_edit"""
     message = call.message
     if not call.message:
         return
@@ -359,6 +381,8 @@ def callback_inline(call):
 
 @bot.message_handler(content_types=['photo', 'document'])
 def handle_receipt_photo(message):
+    """Process an uploaded receipt: save the image and run the recognition pipeline to extract products.
+    Update the user context and notify the user, offering price/name editing when appropriate."""
     chat_id = message.chat.id
  
     context = state.Context()

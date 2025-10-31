@@ -10,13 +10,13 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def _row_to_dict(row): # done
+def _row_to_dict(row):
     return dict(row) if row is not None else None
 
 def _rows_to_list(rows):
     return [dict(r) for r in rows]
 
-def _is_int_like(x): # done
+def _is_int_like(x):
     try:
         int(x)
         return True
@@ -49,7 +49,7 @@ _ENDPOINT_MAP = {
 }
 
 
-def get_data_info_db(endpoint, data): ## done
+def get_data_info_db(endpoint, data):
     """
     Search entity, returns (True, first_match_dict) or (False, None).
     """
@@ -193,14 +193,14 @@ def post_data_info_db(endpoint, data):
 
 def get_filtrated_info_db(endpoint, search_field, data, **kwargs):
     """
-    Фильтрованный поиск. Возвращает (True, list_of_dicts) или (False, None).
-    Поддерживаем common-сценарии:
+    Filtered search. Returns (True, list_of_dicts) or (False, None).
+    Support common-scenarios:
       - product?name=... + category
       - expense?user=... + period
-      - generic по колонке в той же таблице
+      - generic by column in the same table
     kwargs:
-      - category: id или name (или строка формата 'category=3' — мы тоже позволяем)
-      - period: см. _parse_period
+      - category: id or name (or string like 'category=3')
+      - period: see _parse_period
     """
     try:
         endpoint = _ENDPOINT_MAP.get(endpoint)

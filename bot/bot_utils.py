@@ -83,6 +83,9 @@ def price_validation(price):
 
 
 def process_price_edit(message, editted_list_position):
+    """Product price edition.
+    Previous stage: callback_inline - products_present_in_database button or callback_price_edit
+    Next stage: showing products_absent_in_database or products_present_in_database buttons"""
     context = state.UserContext[message.chat.id]
     stage = context.stage
     if "present" in stage:
@@ -120,6 +123,9 @@ def process_price_edit(message, editted_list_position):
 
 
 def process_name_edit(message, editted_list_position):
+    """Product name edition.
+    Previous stage: callback_inline - products_absent_in_database button
+    Next stage: showing products_absent_in_database buttons"""
     context = state.UserContext[message.chat.id]
     stage = context.stage
     if "present" in stage:
@@ -165,6 +171,10 @@ def process_name_edit(message, editted_list_position):
 
 
 def collecting_data_to_get_products(filepath, context):
+    """Collecting data about the products in the receipt.
+    Fill in products_present_in_database and products_absent_in_database lists
+    Previous stage: handle_receipt_photo
+    Next stage: handle_receipt_photo"""
     shopping_list = file_opening(filepath)
     logger.info("Start collecting poduct data")
     products_present_in_database = context.products_present_in_database
@@ -191,6 +201,9 @@ def collecting_data_to_get_products(filepath, context):
 
 
 def post_category_product(message, product_name):
+    """Posting a new category and a new product.
+    Previous stage: callback_category_creation - the user entered a name of a new category
+    Next stage: products_absent_in_database button or collecting_data_and_post_item"""
     context = state.UserContext[message.chat.id]
     logger.info(f"For the product \"{product_name}\" the user set the following category \"{message.text}\".")
 
@@ -233,18 +246,19 @@ def post_category_product(message, product_name):
 
 
 def get_category_id(category_name, context):
-    logger.debug("I'm in get_category_id")
-    logger.debug(f"context.existing_categories_with_id = {context.existing_categories_with_id}")
+    """Searching the category ID by its name. Returning the category ID
+    Previous stage: callback_existing_category - the user pushed an existing category button
+    Next stage: callback_existing_category"""
     for category in context.existing_categories_with_id:
-        logger.debug(f"category_name = {category_name}")
-        logger.debug(f"category['name'] = {category["name"]}")
         if category["name"] == category_name:
-            logger.info(f"Id for category \"{category["name"]}\" = {category["id"]}")
+            logger.info(f"ID for category \"{category["name"]}\" = {category["id"]}")
             return category["id"]
-            break
 
 
 def collecting_data_and_post_user(message):
+    """Posting the user info to database
+    Previous stage: pushing the "Register" button or collecting_data_and_post_expense
+    Next stage: showing the "Upload receipt" button or collecting_data_and_post_expense"""
     # get_user_status, user_info = get_data_info("users", message.chat.username) # change for "user" for sqlite db
     get_user_status, user_info = get_data_info_db("user", message.chat.username)
     logger.debug(f"message.chat.id = {message.chat.id}")
@@ -267,6 +281,10 @@ def collecting_data_and_post_user(message):
 
 
 def collecting_data_and_post_expense(message):
+    """Finalize the current receipt by collecting staged products and user info into an expense record.
+    Post the expense and update the user context with the resulting id.
+    Previous stage: Nothing_to_edit_after_PRESENT_IN_DATABASE or Nothing_to_edit_after_ABSENT_IN_DATABASE buttons
+    Next stage: back into the function, which made a call and then collecting_data_and_post_item"""
     context = state.UserContext[message.chat.id]
     expense_dict = {}
     if not context.new_expense:
@@ -302,6 +320,10 @@ def collecting_data_and_post_expense(message):
 
 
 def collecting_expense_item_data(context, item, product_info):
+    """Populate required IDs and normalize price data so the item can be posted as an expense item.
+    Remove name and other temporary fields used during recognition.
+    Previous stage: collecting_data_and_post_item
+    Next stage: collecting_data_and_post_item"""
     expense_id = context.expense_id
     logger.info(f"product_info = {product_info}")
     item["expense"] = expense_id
@@ -315,6 +337,10 @@ def collecting_expense_item_data(context, item, product_info):
 
 
 def collecting_data_and_post_item(message):
+    """Consume the new_expense queue, post each item when its product exists, and request extra info when it doesn't.
+    Report final upload status and return the user to the main interface.
+    Previous stage: Nothing_to_edit_after_PRESENT_IN_DATABASE or Nothing_to_edit_after_ABSENT_IN_DATABASE buttons
+    Next stage: showing the user the main menu"""
     context = state.UserContext[message.chat.id]
     statuses = []
     logger.info(f"context.new_expense = {context.new_expense}")
