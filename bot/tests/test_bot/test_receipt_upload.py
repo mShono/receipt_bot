@@ -7,10 +7,10 @@ from ...state import UserContext
 def run_receipt_test(monkeypatch, mock_photo_message, mock_send_message,
     incoming_data, expected_present, expected_absent, expected_message, test_filepath):
     monkeypatch.setattr(
-        "bot.bot_utils.get_data_info",
+        "bot.bot_utils.get_data_info_db",
         lambda endpoint, data: incoming_data.get(data, (False, None))
     )
-    monkeypatch.setattr("bot.__main__.recognition_turbo", lambda file_name: test_filepath)
+    monkeypatch.setattr("bot.__main__.recognition_image_turbo", lambda file_name: test_filepath)
     handle_receipt_photo(mock_photo_message)
     context = UserContext[mock_photo_message.chat.id]
     assert context.products_present_in_database == expected_present

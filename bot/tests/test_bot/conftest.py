@@ -101,7 +101,7 @@ def fake_callback_query_factory():
 @pytest.fixture
 def mock_get_data_info_positive(monkeypatch):
     def fake_get_data_info_positive(endpoint, data):
-        if endpoint == "users":
+        if endpoint == "user":
             return True, {
                 "id": 1,
                 "chat_id": 12345,
@@ -114,7 +114,7 @@ def mock_get_data_info_positive(monkeypatch):
         elif endpoint == "expense":
             return True, {"id": 1}
         return
-    monkeypatch.setattr("bot.bot_utils.get_data_info", fake_get_data_info_positive)
+    monkeypatch.setattr("bot.bot_utils.get_data_info_db", fake_get_data_info_positive)
     return fake_get_data_info_positive
 
 
@@ -122,7 +122,7 @@ def mock_get_data_info_positive(monkeypatch):
 def mock_get_data_info_negative(monkeypatch):
     def fake_data_info_negative(endpoint, data):
         return False, None
-    monkeypatch.setattr("bot.bot_utils.get_data_info", fake_data_info_negative)
+    monkeypatch.setattr("bot.bot_utils.get_data_info_db", fake_data_info_negative)
     return fake_data_info_negative
 
 
@@ -137,7 +137,7 @@ def mock_get_data_info_mixed(monkeypatch):
             else:
                 return False, {}
         return
-    monkeypatch.setattr("bot.bot_utils.get_data_info", fake_get_data_info_mixed)
+    monkeypatch.setattr("bot.bot_utils.get_data_info_db", fake_get_data_info_mixed)
     return fake_get_data_info_mixed
 
 
@@ -159,8 +159,8 @@ def mock_post_data_info_positive(monkeypatch):
         # if endpoint =="category":
         #     return True, 1
         # return
-    monkeypatch.setattr("bot.bot_utils.post_data_info", fake_post_data_info_positive)
-    monkeypatch.setattr("bot.__main__.post_data_info", fake_post_data_info_positive)
+    monkeypatch.setattr("bot.bot_utils.post_data_info_db", fake_post_data_info_positive)
+    monkeypatch.setattr("bot.__main__.post_data_info_db", fake_post_data_info_positive)
     return fake_post_data_info_positive
 
 
@@ -168,7 +168,7 @@ def mock_post_data_info_positive(monkeypatch):
 def mock_post_data_info_negative(monkeypatch):
     def fake_data_info_negative(endpoint, data):
         return False, None
-    monkeypatch.setattr("bot.bot_utils.post_data_info", fake_data_info_negative)
+    monkeypatch.setattr("bot.bot_utils.post_data_info_db", fake_data_info_negative)
     return fake_data_info_negative
 
 

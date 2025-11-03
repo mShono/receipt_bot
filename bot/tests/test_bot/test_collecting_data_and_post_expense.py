@@ -1,5 +1,5 @@
 from ...bot_utils import collecting_data_and_post_expense
-from .mocks import  FakeMessage
+from .mocks import FakeMessage
 
 
 def test_collecting_data_and_post_expence_positive(fake_context, mock_get_data_info_positive, mock_post_data_info_positive):

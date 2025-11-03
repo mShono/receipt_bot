@@ -1,6 +1,6 @@
 from ...bot_utils import collecting_data_and_post_item
 from .mocks import  FakeMessage
-from ...messages import SUCCESSFUL_UPLOAD_EXPENCE, PPODUCT_MISSING_IN_DATABASE, UNSUCCESSFUL_UPLOAD_EXPENCE
+from ...messages import SUCCESSFUL_UPLOAD_EXPENSE, PPODUCT_MISSING_IN_DATABASE, UNSUCCESSFUL_UPLOAD_EXPENSE
 
 
 def test_collecting_data_and_post_item_positive(fake_context, mock_get_data_info_positive, mock_post_data_info_positive, mock_send_message):
@@ -12,7 +12,7 @@ def test_collecting_data_and_post_item_positive(fake_context, mock_get_data_info
 
     assert fake_context.expense_id == None
     _, message_text, _ = mock_send_message[0]
-    assert message_text == SUCCESSFUL_UPLOAD_EXPENCE
+    assert message_text == SUCCESSFUL_UPLOAD_EXPENSE
 
 
 def test_collecting_data_and_post_item_negative(fake_context, mock_get_data_info_positive, mock_post_data_info_negative, mock_send_message):
@@ -24,7 +24,7 @@ def test_collecting_data_and_post_item_negative(fake_context, mock_get_data_info
 
     assert fake_context.expense_id == None
     _, message_text, _ = mock_send_message[0]
-    assert message_text == UNSUCCESSFUL_UPLOAD_EXPENCE
+    assert message_text == UNSUCCESSFUL_UPLOAD_EXPENSE
 
 
 def test_collecting_data_and_post_item_get_data_info_negative(fake_context, monkeypatch, mock_get_data_info_negative, mock_send_message):
@@ -32,9 +32,9 @@ def test_collecting_data_and_post_item_get_data_info_negative(fake_context, monk
     fake_context.new_expense.extend(fake_context.products_present_in_database)
     fake_context.new_expense.extend(fake_context.products_absent_in_database)
 
-    def fake_check_existent_categories(fake_context):
+    def fake_check_existent_categories_db(fake_context):
         fake_context.existing_categories.append("first_category")
-    monkeypatch.setattr("bot.bot_utils.check_existent_categories", fake_check_existent_categories)
+    monkeypatch.setattr("bot.bot_utils.check_existent_categories_db", fake_check_existent_categories_db)
 
     collecting_data_and_post_item(message)
 

@@ -77,7 +77,7 @@ def test_post_category_product_negative_product(monkeypatch, fake_context, mock_
             return False, None
         return True, 123
 
-    monkeypatch.setattr("bot.bot_utils.post_data_info", fake_post_data_info)
+    monkeypatch.setattr("bot.bot_utils.post_data_info_db", fake_post_data_info)
 
     post_category_product(message, product_name)
 
