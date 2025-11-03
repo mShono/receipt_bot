@@ -218,7 +218,8 @@ def post_category_product(message, product_name):
         messages.send_error_message(message, product_name, context,"category")
 
     try:
-        post_product_status, _ = post_data_info("product", {"name": f"{product_name}", "category": f"{new_category_id}"})
+        # post_product_status, _ = post_data_info("product", {"name": f"{product_name}", "category": f"{new_category_id}"})
+        post_product_status, _ = post_data_info_db("product", {"name": f"{product_name}", "category": f"{new_category_id}"})
         logger.info(f"post_product_status = {post_product_status}")
         if not post_product_status:
             messages.send_error_message(message, product_name, context, "product")
@@ -383,7 +384,8 @@ def collecting_data_and_post_item(message):
 
 
 def get_receipt_data(message, receipt_period):
-    status, product_info = get_filtrated_info("expense", "user__chat_id",  message.chat.id, period=receipt_period)
+    # status, product_info = get_filtrated_info("expense", "user__chat_id",  message.chat.id, period=receipt_period)
+    status, product_info = get_filtrated_info_db("expense", "user__chat_id",  message.chat.id, period=receipt_period)
     if not status:
         bot.send_message(
             message.chat.id,
@@ -403,7 +405,13 @@ def get_receipt_data(message, receipt_period):
 
 
 def get_expense_category_data(message, receipt_period):
-    status, categories_sum = get_filtrated_info(
+    # status, categories_sum = get_filtrated_info(
+    #     "expense_item/category_sums",
+    #     "chat_id",
+    #     message.chat.id,
+    #     period=receipt_period
+    # )
+    status, categories_sum = get_filtrated_info_db(
         "expense_item/category_sums",
         "chat_id",
         message.chat.id,
@@ -421,7 +429,13 @@ def get_expense_data(message, category, receipt_period):
     category_parametr = "category=" + category
     receipt_period_paranetr = "created_at__range=" + receipt_period
     logger.info(f"category_parametr = {category_parametr}")
-    status, expenses_info = get_filtrated_info(
+    # status, expenses_info = get_filtrated_info(
+    #     "expense_item",
+    #     "chat_id",
+    #     message.chat.id,
+    #     category=category_parametr,
+    #     period=receipt_period_paranetr)
+    status, expenses_info = get_filtrated_info_db(
         "expense_item",
         "chat_id",
         message.chat.id,

@@ -57,8 +57,6 @@ def wake_up(message):
         chat_id=chat.id,
         text=messages.INVITATION_TO_REGISTER,
         reply_markup=markup)
-    keyboard = keyboard_main_menu()
-    bot.send_message(chat_id=chat.id, text=messages.BUTTON_SUGGESTION, reply_markup=keyboard)
     logger.info("Invitation for registration sent")
 
 
